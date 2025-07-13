@@ -1,0 +1,50 @@
+pipeline {
+    agent any
+    environment {
+        FLUTTER_HOME = '/opt/flutter' // or tool name 'Flutter-Stable'
+        PATH = "${FLUTTER_HOME}/bin:${PATH}"
+        PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
+        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', 
+                url: 'https://github.com/KamleshKG/hello_world_app.git'
+            }
+        }
+        stage('Dependencies') {
+            steps {
+                sh 'flutter pub get'
+            }
+        }
+        stage('Build APK') {
+            steps {
+                sh 'flutter build apk --release'
+            }
+        }
+        stage('Publish to Artifactory') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'jfrog-creds',
+                    usernameVariable: 'JFROG_USER',
+                    passwordVariable: 'JFROG_PASS'
+                )]) {
+                    sh '''
+                    # Upload APK
+                    curl -u$JFROG_USER:$JFROG_PASS -T build/app/outputs/flutter-apk/app-release.apk \
+                         "${ARTIFACTORY_URL}${BUILD_NUMBER}/app-release.apk"
+                    
+                    # Optional: Publish Dart package
+                    dart pub publish --server=$PUB_HOSTED_URL
+                    '''
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/*.apk', fingerprint: true
+        }
+    }
+}
