@@ -4,56 +4,37 @@ pipeline {
         FLUTTER_HOME = '/opt/flutter'
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
-        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/'
-        FLUTTER_CACHE = "${FLUTTER_HOME}/bin/cache"
     }
     stages {
-        stage('Setup Flutter') {
-    steps {
-        sh '''
-        # Verify Flutter access
-        ls -la /opt/flutter/bin
-        flutter doctor -v
-        '''
-    }
-}
-        stage('Checkout') {
+        stage('Setup') {
             steps {
-                git branch: 'main', 
-                url: 'https://github.com/KamleshKG/hello_world_app.git'
-            }
-        }
-        stage('Dependencies') {
-            steps {
-                sh 'flutter pub get'
-            }
-        }
-        stage('Build APK') {
-            steps {
-                sh 'flutter build apk --release --no-pub'
-            }
-        }
-        stage('Publish to Artifactory') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'jfrog-creds',
-                    usernameVariable: 'JFROG_USER',
-                    passwordVariable: 'JFROG_PASS'
+                withCredentials([string(
+                    credentialsId: 'artifactory-token', // Store token in Jenkins credentials
+                    variable: 'DART_PUB_TOKEN'
                 )]) {
                     sh '''
-                    curl -u$JFROG_USER:$JFROG_PASS \
-                         -H "X-Checksum-Sha1: $(sha1sum build/app/outputs/flutter-apk/app-release.apk | cut -d' ' -f1)" \
-                         -T build/app/outputs/flutter-apk/app-release.apk \
-                         "${ARTIFACTORY_URL}${BUILD_NUMBER}/app-release.apk"
+                    # Non-interactive token setup
+                    mkdir -p ~/.config/dart
+                    echo '{
+                      "accessToken":"$DART_PUB_TOKEN",
+                      "refreshToken":"$DART_PUB_TOKEN",
+                      "tokenEndpoint":"$PUB_HOSTED_URL",
+                      "scopes":["$PUB_HOSTED_URL"],
+                      "expiration":9999999999999
+                    }' > ~/.config/dart/pub-credentials.json
+                    
+                    flutter doctor -v
                     '''
                 }
             }
         }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/*.apk', fingerprint: true
-            sh 'flutter clean'
+        stage('Build') {
+            steps {
+                sh '''
+                flutter pub get
+                flutter build apk --release
+                '''
+            }
         }
     }
 }
