@@ -1,12 +1,26 @@
 pipeline {
     agent any
     environment {
-        FLUTTER_HOME = '/opt/flutter' // or tool name 'Flutter-Stable'
+        FLUTTER_HOME = '/opt/flutter'
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/'
+        
+        ⬇️ NEW: Fix cache permissions
+        FLUTTER_CACHE = "${FLUTTER_HOME}/bin/cache"
     }
     stages {
+        ⬇️ NEW: Add pre-build setup stage
+        stage('Setup Flutter') {
+            steps {
+                sh '''
+                # Ensure cache is writable
+                sudo chown -R jenkins:jenkins ${FLUTTER_HOME}
+                sudo chmod -R 775 ${FLUTTER_CACHE}
+                flutter doctor -v
+                '''
+            }
+        }
         stage('Checkout') {
             steps {
                 git branch: 'main', 
@@ -20,7 +34,7 @@ pipeline {
         }
         stage('Build APK') {
             steps {
-                sh 'flutter build apk --release'
+                sh 'flutter build apk --release --no-pub'  ⬇️ NEW: Skip pub checks
             }
         }
         stage('Publish to Artifactory') {
@@ -31,12 +45,11 @@ pipeline {
                     passwordVariable: 'JFROG_PASS'
                 )]) {
                     sh '''
-                    # Upload APK
-                    curl -u$JFROG_USER:$JFROG_PASS -T build/app/outputs/flutter-apk/app-release.apk \
+                    # Upload APK with metadata
+                    curl -u$JFROG_USER:$JFROG_PASS \
+                         -H "X-Checksum-Sha1: $(sha1sum build/app/outputs/flutter-apk/app-release.apk | cut -d' ' -f1)" \
+                         -T build/app/outputs/flutter-apk/app-release.apk \
                          "${ARTIFACTORY_URL}${BUILD_NUMBER}/app-release.apk"
-                    
-                    # Optional: Publish Dart package
-                    dart pub publish --server=$PUB_HOSTED_URL
                     '''
                 }
             }
@@ -45,6 +58,9 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/*.apk', fingerprint: true
+            
+            ⬇️ NEW: Cleanup to save space
+            sh 'flutter clean'
         }
     }
 }
