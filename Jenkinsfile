@@ -6,24 +6,23 @@ pipeline {
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
     }
     stages {
-        stage('Setup') {
+        stage('Auth Setup') {
             steps {
-                withCredentials([string(
-                    credentialsId: 'artifactory-token', // Store token in Jenkins credentials
-                    variable: 'DART_PUB_TOKEN'
-                )]) {
+                withCredentials([
+                    string(credentialsId: 'artifactory-token', variable: 'DART_PUB_TOKEN')
+                ]) {
                     sh '''
-                    # Non-interactive token setup
+                    # Configure Dart pub credentials
                     mkdir -p ~/.config/dart
-                    echo '{
+                    cat > ~/.config/dart/pub-credentials.json <<EOF
+                    {
                       "accessToken":"$DART_PUB_TOKEN",
                       "refreshToken":"$DART_PUB_TOKEN",
                       "tokenEndpoint":"$PUB_HOSTED_URL",
                       "scopes":["$PUB_HOSTED_URL"],
                       "expiration":9999999999999
-                    }' > ~/.config/dart/pub-credentials.json
-                    
-                    flutter doctor -v
+                    }
+                    EOF
                     '''
                 }
             }
