@@ -1,17 +1,41 @@
 pipeline {
     agent any
     environment {
+        // Essential paths - UPDATE THESE TO MATCH YOUR SERVER
         FLUTTER_HOME = '/opt/flutter'
-        ANDROID_HOME = '/home/vagrant/VirtualBox/android-sdk'
+        ANDROID_HOME = '/home/vagrant/VirtualBox/android-sdk' 
+        JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
         PUB_CACHE = "${WORKSPACE}/.pub-cache"
-        PATH = "${FLUTTER_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+        
+        // Configure PATH
+        PATH = "${FLUTTER_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${JAVA_HOME}/bin:${PATH}"
     }
     stages {
         stage('Setup Environment') {
             steps {
                 sh '''
-                mkdir -p "${PUB_CACHE}"
+                # Verify critical paths
+                echo "=== Environment ==="
+                echo "Flutter: $(which flutter)"
+                echo "Android SDK: ${ANDROID_HOME}"
+                echo "Java: $(java -version 2>&1 | head -n 1)"
+                
+                # Initialize Flutter
                 flutter doctor -v
+                flutter pub cache repair
+                '''
+            }
+        }
+
+        stage('Resolve Dependencies') {
+            steps {
+                sh '''
+                # Check for outdated packages
+                flutter pub outdated
+                
+                # Force dependency resolution
+                flutter pub upgrade --major-versions
+                flutter pub get
                 '''
             }
         }
@@ -19,40 +43,31 @@ pipeline {
         stage('Build APK') {
             steps {
                 sh '''
+                # Build with SDK verification
                 flutter clean
-                flutter pub get
-                flutter build apk --release
+                flutter build apk --release --verbose 2>&1 | tee build.log
+                
+                # Verify output
+                ls -la build/app/outputs/flutter-apk/app-release.apk || {
+                    echo "APK not found! Searching..."
+                    find build -name "*.apk" || exit 1
+                }
                 '''
             }
-        }
-
-        stage('Verify Artifacts') {
-            steps {
-                sh '''
-                # Check standard APK locations
-                if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-                    echo "Primary APK found"
-                    ls -lh build/app/outputs/flutter-apk/app-release.apk
-                elif [ -f "build/app/outputs/apk/release/app-release.apk" ]; then
-                    echo "Secondary APK found"
-                    ls -lh build/app/outputs/apk/release/app-release.apk
-                else
-                    echo "Searching for APKs..."
-                    find build -name "*.apk" | while read apk; do
-                        ls -lh "$apk"
-                    done
-                    echo "No APK files found!"
-                    exit 1
-                fi
-                '''
+            post {
+                always {
+                    archiveArtifacts artifacts: 'build.log', fingerprint: false
+                }
             }
         }
     }
     post {
         always {
             sh '''
-            echo "Workspace contents:"
-            ls -la
+            echo "=== Final Status ==="
+            flutter doctor -v
+            echo "=== Build Output ==="
+            ls -la build/app/outputs/flutter-apk/
             '''
         }
     }
