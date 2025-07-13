@@ -6,33 +6,26 @@ pipeline {
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
     }
     stages {
-        stage('Auth Setup') {
+        stage('Build') {
             steps {
-                withCredentials([
-                    string(credentialsId: 'artifactory-token', variable: 'DART_PUB_TOKEN')
-                ]) {
+                withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
                     sh '''
-                    # Configure Dart pub credentials
+                    # Configure authentication
                     mkdir -p ~/.config/dart
                     cat > ~/.config/dart/pub-credentials.json <<EOF
                     {
-                      "accessToken":"$DART_PUB_TOKEN",
-                      "refreshToken":"$DART_PUB_TOKEN",
+                      "accessToken":"$TOKEN",
+                      "refreshToken":"$TOKEN",
                       "tokenEndpoint":"$PUB_HOSTED_URL",
                       "scopes":["$PUB_HOSTED_URL"],
                       "expiration":9999999999999
                     }
                     EOF
+                    
+                    flutter pub get
+                    flutter build apk --release
                     '''
                 }
-            }
-        }
-        stage('Build') {
-            steps {
-                sh '''
-                flutter pub get
-                flutter build apk --release
-                '''
             }
         }
     }
