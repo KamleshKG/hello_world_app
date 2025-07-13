@@ -3,23 +3,25 @@ pipeline {
     environment {
         FLUTTER_HOME = '/opt/flutter'
         ANDROID_SDK_ROOT = '/home/vagrant/VirtualBox/android-sdk'
-        PATH = "${FLUTTER_HOME}/bin:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${PATH}"
+        WORKSPACE = '/var/lib/jenkins/.jenkins/workspace/flutter-hello-world_main'
     }
     stages {
-        stage('Migrate to Android v2 Embedding') {
+        stage('Fix Permissions') {
             steps {
                 sh '''
-                # Backup current files
-                cp android/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml.bak
-                cp android/app/build.gradle android/app/build.gradle.bak
+                # Temporary permission fix (test env only)
+                sudo chmod 777 ${WORKSPACE}
+                '''
+            }
+        }
 
-                # Update to v2 embedding
-                flutter clean
-                flutter create --platforms android --androidx .
-
-                # Restore custom configurations
-                grep -v "io.flutter.app" android/app/src/main/AndroidManifest.xml.bak > android/app/src/main/AndroidManifest.xml
-                mv android/app/build.gradle.bak android/app/build.gradle
+        stage('Regenerate Android') {
+            steps {
+                sh '''
+                cd ${WORKSPACE}
+                mkdir -p backup
+                [ -d "android" ] && mv android backup/android_$(date +%s)
+                flutter create --platforms android .
                 '''
             }
         }
@@ -27,17 +29,20 @@ pipeline {
         stage('Build APK') {
             steps {
                 sh '''
+                cd ${WORKSPACE}
+                echo "sdk.dir=${ANDROID_SDK_ROOT}" > android/local.properties
+                flutter clean
                 flutter pub get
-                flutter build apk --release --verbose 2>&1 | tee build.log
+                flutter build apk --release
+                '''
+            }
+        }
 
-                if [ -f "build/app/outputs/flutter-apk/app-release.apk" ]; then
-                    echo "✅ Build successful!"
-                    ls -lh build/app/outputs/flutter-apk/app-release.apk
-                else
-                    echo "❌ Build failed!"
-                    grep -i "error\\|fail\\|exception" build.log
-                    exit 1
-                fi
+        stage('Reset Permissions') {
+            steps {
+                sh '''
+                sudo chmod 755 ${WORKSPACE}
+                sudo chown -R jenkins:jenkins ${WORKSPACE}
                 '''
             }
         }
