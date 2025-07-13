@@ -11,10 +11,8 @@ pipeline {
         stage('Setup Flutter') {
     steps {
         sh '''
-        # Use workspace cache instead of modifying system Flutter
-        mkdir -p "${WORKSPACE}/.flutter_cache"
-        ln -sf "${WORKSPACE}/.flutter_cache" "${FLUTTER_HOME}/bin/cache"
-        chmod -R 775 "${FLUTTER_HOME}/bin/cache"
+        # Verify Flutter access
+        ls -la /opt/flutter/bin
         flutter doctor -v
         '''
     }
