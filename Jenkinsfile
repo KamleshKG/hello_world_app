@@ -5,16 +5,12 @@ pipeline {
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/'
-        
-        ⬇️ NEW: Fix cache permissions
         FLUTTER_CACHE = "${FLUTTER_HOME}/bin/cache"
     }
     stages {
-        ⬇️ NEW: Add pre-build setup stage
         stage('Setup Flutter') {
             steps {
                 sh '''
-                # Ensure cache is writable
                 sudo chown -R jenkins:jenkins ${FLUTTER_HOME}
                 sudo chmod -R 775 ${FLUTTER_CACHE}
                 flutter doctor -v
@@ -34,7 +30,7 @@ pipeline {
         }
         stage('Build APK') {
             steps {
-                sh 'flutter build apk --release --no-pub'  ⬇️ NEW: Skip pub checks
+                sh 'flutter build apk --release --no-pub'
             }
         }
         stage('Publish to Artifactory') {
@@ -45,7 +41,6 @@ pipeline {
                     passwordVariable: 'JFROG_PASS'
                 )]) {
                     sh '''
-                    # Upload APK with metadata
                     curl -u$JFROG_USER:$JFROG_PASS \
                          -H "X-Checksum-Sha1: $(sha1sum build/app/outputs/flutter-apk/app-release.apk | cut -d' ' -f1)" \
                          -T build/app/outputs/flutter-apk/app-release.apk \
@@ -58,8 +53,6 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/*.apk', fingerprint: true
-            
-            ⬇️ NEW: Cleanup to save space
             sh 'flutter clean'
         }
     }
