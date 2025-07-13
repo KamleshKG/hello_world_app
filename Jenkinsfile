@@ -3,15 +3,14 @@ pipeline {
     environment {
         FLUTTER_HOME = '/opt/flutter'
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
-        // Temporary override for Flutter toolchain
         PUB_HOSTED_URL = 'https://pub.dartlang.org'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory'
+        BUILD_DIR = 'build/app/outputs/flutter-apk'  // Define build directory
     }
     stages {
         stage('Setup Flutter') {
             steps {
                 sh '''
-                # Bypass toolchain authentication
                 flutter doctor -v --suppress-analytics
                 '''
             }
@@ -19,13 +18,11 @@ pipeline {
         
         stage('Build') {
             environment {
-                // App-specific packages use Artifactory
                 PUB_HOSTED_URL = "${ARTIFACTORY_URL}/api/pub/dart-pub-pub/"
             }
             steps {
                 withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
                     sh '''
-                    # Configure only for app dependencies
                     mkdir -p ~/.config/dart
                     cat > ~/.config/dart/pub-credentials.json <<EOF
                     {
@@ -38,15 +35,21 @@ pipeline {
                     EOF
                     
                     flutter pub get
+                    flutter clean  # Ensure clean build
                     flutter build apk --release --no-pub
-                    flutter build ios --release --no-codesign --no-pub
-                    flutter build web --release --no-pub
                     '''
                 }
             }
             post {
                 success {
-                    archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/app-release.apk', fingerprint: true
+                    script {
+                        // Verify the APK exists before archiving
+                        if (fileExists("${env.BUILD_DIR}/app-release.apk")) {
+                            archiveArtifacts artifacts: "${env.BUILD_DIR}/app-release.apk", fingerprint: true
+                        } else {
+                            error "APK file not found at ${env.BUILD_DIR}/app-release.apk"
+                        }
+                    }
                     stash includes: 'build/web/**', name: 'web-build'
                     stash includes: 'build/ios/**', name: 'ios-build'
                 }
@@ -56,12 +59,17 @@ pipeline {
         stage('Publish APK') {
             steps {
                 withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
-                    sh '''
-                    # Publish APK to Artifactory
-                    curl -H "Authorization: Bearer $TOKEN" \
-                         -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/app-release.apk" \
-                         -T build/app/outputs/flutter-apk/app-release.apk
-                    '''
+                    script {
+                        if (fileExists("${env.BUILD_DIR}/app-release.apk")) {
+                            sh """
+                            curl -H "Authorization: Bearer $TOKEN" \
+                                 -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/app-release.apk" \
+                                 -T ${env.BUILD_DIR}/app-release.apk
+                            """
+                        } else {
+                            error "APK file not found for publishing"
+                        }
+                    }
                 }
             }
         }
@@ -102,6 +110,7 @@ pipeline {
     post {
         always {
             cleanWs()
+            sh 'flutter clean'  # Clean up build artifacts
         }
     }
 }
