@@ -5,7 +5,8 @@ pipeline {
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
         PUB_HOSTED_URL = 'https://pub.dartlang.org'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory'
-        BUILD_DIR = 'build/app/outputs/flutter-apk'  // Define build directory
+        // Try common APK output paths
+        APK_PATH = 'build/app/outputs/apk/release/app-release.apk'  // Most common path
     }
     stages {
         stage('Setup Flutter') {
@@ -15,7 +16,18 @@ pipeline {
                 '''
             }
         }
-        
+
+        stage('Debug: Check Workspace') {
+            steps {
+                sh '''
+                echo "Current workspace contents:"
+                ls -la
+                echo "Flutter build outputs:"
+                ls -la build/ || echo "No build directory exists yet"
+                '''
+            }
+        }
+
         stage('Build') {
             environment {
                 PUB_HOSTED_URL = "${ARTIFACTORY_URL}/api/pub/dart-pub-pub/"
@@ -35,19 +47,26 @@ pipeline {
                     EOF
                     
                     flutter pub get
-                    flutter clean  # Ensure clean build
+                    flutter clean
                     flutter build apk --release --no-pub
+                    
+                    # Debug: Show actual APK location
+                    echo "Build outputs:"
+                    find build/ -name "*.apk" || echo "No APK files found"
                     '''
                 }
             }
             post {
                 success {
                     script {
-                        // Verify the APK exists before archiving
-                        if (fileExists("${env.BUILD_DIR}/app-release.apk")) {
-                            archiveArtifacts artifacts: "${env.BUILD_DIR}/app-release.apk", fingerprint: true
+                        // Try to find the APK if not in default location
+                        def apkFile = findFiles(glob: 'build/**/*.apk')[0]?.path
+                        if (apkFile) {
+                            echo "Found APK at: ${apkFile}"
+                            env.ACTUAL_APK_PATH = apkFile
+                            archiveArtifacts artifacts: apkFile, fingerprint: true
                         } else {
-                            error "APK file not found at ${env.BUILD_DIR}/app-release.apk"
+                            error "No APK file found in build directory. Check build logs."
                         }
                     }
                     stash includes: 'build/web/**', name: 'web-build'
@@ -55,62 +74,36 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Publish APK') {
             steps {
                 withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
                     script {
-                        if (fileExists("${env.BUILD_DIR}/app-release.apk")) {
+                        if (env.ACTUAL_APK_PATH) {
                             sh """
                             curl -H "Authorization: Bearer $TOKEN" \
                                  -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/app-release.apk" \
-                                 -T ${env.BUILD_DIR}/app-release.apk
+                                 -T ${env.ACTUAL_APK_PATH}
                             """
                         } else {
-                            error "APK file not found for publishing"
+                            error "No APK path available for publishing"
                         }
                     }
                 }
             }
         }
-        
-        stage('Publish Web Assets') {
-            steps {
-                unstash 'web-build'
-                withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
-                    sh '''
-                    # Package and publish web assets
-                    cd build/web
-                    zip -r web-assets.zip .
-                    curl -H "Authorization: Bearer $TOKEN" \
-                         -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/web-assets.zip" \
-                         -T web-assets.zip
-                    '''
-                }
-            }
-        }
-        
-        stage('Publish iOS Archive') {
-            steps {
-                unstash 'ios-build'
-                withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
-                    sh '''
-                    # Package and publish iOS archive
-                    cd build/ios
-                    zip -r ios-archive.zip .
-                    curl -H "Authorization: Bearer $TOKEN" \
-                         -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/ios-archive.zip" \
-                         -T ios-archive.zip
-                    '''
-                }
-            }
-        }
     }
-    
+
     post {
         always {
+            sh '''
+            echo "Final workspace contents:"
+            ls -la
+            echo "Build directory contents:"
+            ls -la build/ || echo "No build directory exists"
+            '''
             cleanWs()
-            sh 'flutter clean'  // Clean up build artifacts
+            sh 'flutter clean'
         }
     }
 }
