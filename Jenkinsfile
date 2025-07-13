@@ -4,9 +4,17 @@ pipeline {
         FLUTTER_HOME = '/opt/flutter'
         PATH = "${FLUTTER_HOME}/bin:${PATH}"
         PUB_HOSTED_URL = 'https://trialjq29zm.jfrog.io/artifactory/api/pub/dart-pub-pub/'
-        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/' // Updated to your exact repo
+        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory/flutter-app-releases-generic-local/'
     }
     stages {
+        stage('Setup') {
+            steps {
+                sh '''
+                flutter doctor -v
+                flutter clean
+                '''
+            }
+        }
         stage('Build') {
             steps {
                 withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
@@ -23,20 +31,20 @@ pipeline {
                     }
                     EOF
                     
+                    # Build with verbose logging
                     flutter pub get
-                    flutter build apk --release --no-pub
+                    flutter build apk --release --verbose
+                    
+                    # Verify APK exists
+                    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+                    if [ ! -f "$APK_PATH" ]; then
+                        echo "ERROR: APK not found at $APK_PATH"
+                        echo "Build directory contents:"
+                        find . -name build -type d | xargs ls -laR
+                        exit 1
+                    fi
                     '''
                 }
-            }
-        }
-        stage('Verify APK') {
-            steps {
-                sh '''
-                # Debug file location
-                echo "=== Build Output ==="
-                find build -name "*.apk"
-                ls -la build/app/outputs/flutter-apk/
-                '''
             }
         }
         stage('Publish') {
@@ -47,16 +55,10 @@ pipeline {
                     passwordVariable: 'JFROG_PASS'
                 )]) {
                     sh '''
-                    # Publish with exact path
-                    APK_PATH=$(find build -name "app-release.apk" | head -1)
-                    if [ -f "$APK_PATH" ]; then
-                        curl -u$JFROG_USER:$JFROG_PASS \
-                             -T "$APK_PATH" \
-                             "${ARTIFACTORY_URL}${BUILD_NUMBER}/app-release.apk"
-                    else
-                        echo "ERROR: APK not found at $APK_PATH"
-                        exit 1
-                    fi
+                    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+                    curl -u$JFROG_USER:$JFROG_PASS \
+                         -T "$APK_PATH" \
+                         "${ARTIFACTORY_URL}${BUILD_NUMBER}/app-release.apk"
                     '''
                 }
             }
@@ -65,11 +67,8 @@ pipeline {
     post {
         always {
             sh '''
-            # Archive whatever APK exists
-            APK_PATH=$(find build -name "*.apk" | head -1)
-            if [ -f "$APK_PATH" ]; then
-                mkdir -p artifacts && cp "$APK_PATH" artifacts/
-            fi
+            mkdir -p artifacts
+            cp build/app/outputs/flutter-apk/*.apk artifacts/ || true
             '''
             archiveArtifacts artifacts: 'artifacts/*.apk', fingerprint: true
         }
