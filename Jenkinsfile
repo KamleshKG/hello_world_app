@@ -1,26 +1,25 @@
 pipeline {
     agent any
     environment {
+        // Essential paths (modify as needed)
         FLUTTER_HOME = '/opt/flutter'
-        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory'
-        // Workspace-local paths
-        ANDROID_SDK = "${WORKSPACE}/android-sdk"
+        ANDROID_HOME = '/home/vagrant/VirtualBox/android-sdk'
         PUB_CACHE = "${WORKSPACE}/.pub-cache"
-        PATH = "${FLUTTER_HOME}/bin:${ANDROID_SDK}/cmdline-tools/latest/bin:${ANDROID_SDK}/platform-tools:${PATH}"
+        
+        // Configure PATH
+        PATH = "${FLUTTER_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
     }
     stages {
         stage('Setup Environment') {
             steps {
                 sh '''
-                # Create workspace directories
-                mkdir -p "${ANDROID_SDK}" "${PUB_CACHE}"
+                # Create clean workspace directories
+                mkdir -p "${PUB_CACHE}"
                 
-                # Copy minimal required Android SDK components
-                cp -r /home/vagrant/VirtualBox/android-sdk/cmdline-tools "${ANDROID_SDK}/"
-                cp -r /home/vagrant/VirtualBox/android-sdk/platform-tools "${ANDROID_SDK}/"
-                
-                # Initialize pub cache
-                flutter pub cache repair --cache-dir="${PUB_CACHE}"
+                # Verify critical tools
+                flutter doctor -v
+                echo "Android SDK components:"
+                ls ${ANDROID_HOME}/platform-tools/adb
                 '''
             }
         }
@@ -28,43 +27,72 @@ pipeline {
         stage('Build APK') {
             steps {
                 sh '''
-                # Set environment variables
-                export ANDROID_HOME="${ANDROID_SDK}"
-                export PUB_CACHE="${PUB_CACHE}"
+                # Time the build process
+                START_TIME=$(date +%s)
                 
-                # Build with verbose output
+                # Clean and build with verbose logging
                 flutter clean
                 flutter pub get --verbose
-                flutter build apk --release --verbose
+                flutter build apk --release --verbose 2>&1 | tee build.log
                 
-                # Verify APK exists
-                ls -la build/app/outputs/flutter-apk/app-release.apk
+                # Calculate duration
+                END_TIME=$(date +%s)
+                echo "Build completed in $((END_TIME - START_TIME)) seconds"
                 '''
             }
             post {
-                success {
-                    archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/app-release.apk'
+                always {
+                    archiveArtifacts artifacts: 'build.log', fingerprint: false
                 }
-                failure {
-                    archiveArtifacts artifacts: '**/build.log', fingerprint: false
-                }
+            }
+        }
+
+        stage('Verify Artifacts') {
+            steps {
+                sh '''
+                # Standard APK paths to check
+                APK_PATHS=(
+                    "build/app/outputs/flutter-apk/app-release.apk"
+                    "build/app/outputs/apk/release/app-release.apk"
+                )
+
+                # Verify APK exists
+                APK_FOUND=false
+                for path in "${APK_PATHS[@]}"; do
+                    if [ -f "$path" ]; then
+                        echo "✅ Found APK at: $path"
+                        ls -lh "$path"
+                        APK_FOUND=true
+                        echo "$path" > apk_location.txt
+                    fi
+                done
+
+                if ! $APK_FOUND; then
+                    echo "❌ No APK found in standard locations!"
+                    echo "=== Searching entire workspace ==="
+                    find "${WORKSPACE}" -name "*.apk" -exec ls -lh {} \; || echo "No APK files found"
+                    exit 1
+                fi
+                '''
             }
         }
 
         stage('Publish to Artifactory') {
             when {
-                expression { fileExists('build/app/outputs/flutter-apk/app-release.apk') }
+                expression { fileExists('apk_location.txt') }
             }
             steps {
                 withCredentials([string(credentialsId: 'artifactory-token', variable: 'TOKEN')]) {
                     script {
+                        def apkPath = readFile('apk_location.txt').trim()
                         def version = sh(script: "grep 'version:' pubspec.yaml | awk '{print \$2}'", returnStdout: true).trim()
                         def appName = sh(script: "grep 'name:' pubspec.yaml | awk '{print \$2}'", returnStdout: true).trim()
-                        
+
                         sh """
+                        echo "Publishing ${apkPath} to Artifactory"
                         curl -H "Authorization: Bearer $TOKEN" \
                              -X PUT "${ARTIFACTORY_URL}/flutter-app-releases-generic-local/${appName}/${version}/app-release.apk" \
-                             -T build/app/outputs/flutter-apk/app-release.apk
+                             -T ${apkPath}
                         """
                     }
                 }
@@ -74,10 +102,17 @@ pipeline {
     post {
         always {
             sh '''
-            echo "=== Environment Status ==="
-            flutter doctor -v
-            echo "=== Build Artifacts ==="
-            ls -la build/app/outputs/flutter-apk/
+            echo "=== Final Workspace Contents ==="
+            ls -laR "${WORKSPACE}/build" || echo "No build directory found"
+            echo "=== Disk Usage ==="
+            du -sh "${WORKSPACE}"
+            '''
+        }
+        failure {
+            archiveArtifacts artifacts: '**/*.log', fingerprint: false
+            sh '''
+            echo "=== Error Diagnostics ==="
+            grep -i "error\\|fail\\|exception" build.log || echo "No obvious errors in logs"
             '''
         }
     }
