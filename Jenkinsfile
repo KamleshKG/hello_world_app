@@ -2,19 +2,25 @@ pipeline {
     agent any
     environment {
         FLUTTER_HOME = '/opt/flutter'
-        ANDROID_HOME = '/home/vagrant/VirtualBox/android-sdk'
-        PUB_CACHE = '/home/vagrant/VirtualBox/.pub-cache'
-        PATH = "${FLUTTER_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+        ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io/artifactory'
+        // Workspace-local paths
+        ANDROID_SDK = "${WORKSPACE}/android-sdk"
+        PUB_CACHE = "${WORKSPACE}/.pub-cache"
+        PATH = "${FLUTTER_HOME}/bin:${ANDROID_SDK}/cmdline-tools/latest/bin:${ANDROID_SDK}/platform-tools:${PATH}"
     }
     stages {
-        stage('Set Permissions') {
+        stage('Setup Environment') {
             steps {
                 sh '''
-                # Set full permissions (TEST ENVIRONMENT ONLY)
-                sudo chmod -R 777 /home/vagrant/VirtualBox
-                sudo chmod -R 777 /opt/flutter
-                sudo chown -R jenkins:jenkins /home/vagrant/VirtualBox
-                sudo chown -R jenkins:jenkins /opt/flutter
+                # Create workspace directories
+                mkdir -p "${ANDROID_SDK}" "${PUB_CACHE}"
+                
+                # Copy minimal required Android SDK components
+                cp -r /home/vagrant/VirtualBox/android-sdk/cmdline-tools "${ANDROID_SDK}/"
+                cp -r /home/vagrant/VirtualBox/android-sdk/platform-tools "${ANDROID_SDK}/"
+                
+                # Initialize pub cache
+                flutter pub cache repair --cache-dir="${PUB_CACHE}"
                 '''
             }
         }
@@ -22,14 +28,25 @@ pipeline {
         stage('Build APK') {
             steps {
                 sh '''
+                # Set environment variables
+                export ANDROID_HOME="${ANDROID_SDK}"
+                export PUB_CACHE="${PUB_CACHE}"
+                
+                # Build with verbose output
                 flutter clean
-                flutter pub get
-                flutter build apk --release
+                flutter pub get --verbose
+                flutter build apk --release --verbose
+                
+                # Verify APK exists
+                ls -la build/app/outputs/flutter-apk/app-release.apk
                 '''
             }
             post {
                 success {
                     archiveArtifacts artifacts: 'build/app/outputs/flutter-apk/app-release.apk'
+                }
+                failure {
+                    archiveArtifacts artifacts: '**/build.log', fingerprint: false
                 }
             }
         }
@@ -57,9 +74,10 @@ pipeline {
     post {
         always {
             sh '''
-            echo "=== Permission Summary ==="
-            ls -ld /home/vagrant/VirtualBox
-            ls -ld /opt/flutter
+            echo "=== Environment Status ==="
+            flutter doctor -v
+            echo "=== Build Artifacts ==="
+            ls -la build/app/outputs/flutter-apk/
             '''
         }
     }
