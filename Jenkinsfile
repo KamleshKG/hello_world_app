@@ -6,7 +6,7 @@ pipeline {
         WORKSPACE = '/var/lib/jenkins/.jenkins/workspace/flutter-hello-world_main'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io'
         ARTIFACTORY_REPO = 'flutter-app-releases-generic-local'
-        ARTIFACTORY_CREDS = credentials('artifactory-credentials') // Store your token in Jenkins credentials
+        ARTIFACTORY_CREDS = credentials('artifactory-token') // Store your token in Jenkins credentials
 		}
     stages {
         stage('Fix Permissions') {
