@@ -6,8 +6,8 @@ pipeline {
         WORKSPACE = '/var/lib/jenkins/.jenkins/workspace/flutter-hello-world_main'
         ARTIFACTORY_URL = 'https://trialjq29zm.jfrog.io'
         ARTIFACTORY_REPO = 'flutter-app-releases-generic-local'
-        ARTIFACTORY_CREDS = credentials('artifactory-token') // Store your token in Jenkins credentials
-		}
+        ARTIFACTORY_CREDS = credentials('artifactory-token')
+    }
     stages {
         stage('Fix Permissions') {
             steps {
@@ -49,18 +49,27 @@ pipeline {
                 '''
             }
         }
-		stage('Publish to Artifactory') {
+        
+        stage('Publish to Artifactory') {
             steps {
                 script {
-                    // Find the built APK file
-                    def apkFile = findFiles(glob: 'build/app/outputs/flutter-apk/app-release.apk')[0].path
+                    // Alternative 1: Use exact path (recommended for simplicity)
+                    def apkPath = "${WORKSPACE}/build/app/outputs/flutter-apk/app-release.apk"
+                    
+                    // Alternative 2: Use findFiles from pipeline utility steps plugin
+                    // (requires installing "Pipeline Utility Steps" plugin first)
+                    // def apkFiles = findFiles(glob: '**/app-release.apk')
+                    // def apkPath = apkFiles[0].path
+                    
+                    // Verify APK exists
+                    sh "ls -la ${apkPath} || echo 'APK not found!'"
                     
                     // Upload to Artifactory
-                    withCredentials([string(credentialsId: 'artifactory-credentials', variable: 'ARTIFACTORY_TOKEN')]) {
+                    withCredentials([string(credentialsId: 'artifactory-token', variable: 'ARTIFACTORY_TOKEN')]) {
                         sh """
                             curl -H "Authorization: Bearer ${ARTIFACTORY_TOKEN}" \
                                  -X PUT "${ARTIFACTORY_URL}/artifactory/${ARTIFACTORY_REPO}/${env.BUILD_NUMBER}/app-release.apk" \
-                                 -T ${apkFile}
+                                 -T ${apkPath}
                         """
                     }
                     
@@ -69,7 +78,4 @@ pipeline {
             }
         }
     }
-		
-  }
-	
-	
+}
