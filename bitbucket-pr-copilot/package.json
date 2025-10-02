@@ -1,0 +1,103 @@
+{
+  "name": "bitbucket-pr-copilot",
+  "displayName": "Bitbucket PR Copilot PoC",
+  "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
+  "version": "0.0.6",
+  "publisher": "kk",
+  "engines": { "vscode": "^1.80.0" },
+
+  "main": "./extension.js",
+
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:bitbucketPRCopilot.quickPost",
+    "onCommand:bitbucketPRCopilot.batchPost",
+    "onCommand:bitbucketPRCopilot.testGit",
+    "onCommand:bitbucketPRCopilot.clearApiToken",
+    "onCommand:bitbucketPRCopilot.showLog"
+  ],
+
+  "contributes": {
+    "commands": [
+      { "command": "bitbucketPRCopilot.quickPost", "title": "Bitbucket PR Copilot: Quick Post (Active File)" },
+      { "command": "bitbucketPRCopilot.batchPost", "title": "Bitbucket PR Copilot: Batch Post (All Open Files)" },
+      { "command": "bitbucketPRCopilot.testGit", "title": "Bitbucket PR Copilot: Test Git" },
+      { "command": "bitbucketPRCopilot.clearApiToken", "title": "Bitbucket PR Copilot: Clear Bitbucket API Token" },
+      { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log" }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Bitbucket PR Copilot Settings",
+      "properties": {
+        "bitbucketPRCopilot.workspace": {
+          "type": "string",
+          "default": "myworkspace_poc",
+          "description": "Bitbucket workspace ID/slug"
+        },
+        "bitbucketPRCopilot.repo": {
+          "type": "string",
+          "default": "myrepo_poc",
+          "description": "Bitbucket repo slug"
+        },
+        "bitbucketPRCopilot.baseBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "Destination branch for PRs (display only in this PoC)"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "bitbucketPRCopilot.quickPost",
+          "group": "navigation@9",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.batchPost",
+          "group": "navigation@9"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "bitbucketPRCopilot.quickPost",
+          "group": "navigation@9",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "bitbucketPRCopilot.quickPost",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "bitbucketPRCopilot.batchPost",
+        "key": "ctrl+alt+b",
+        "mac": "cmd+alt+b",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+
+  "categories": ["Other"],
+  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review"],
+
+  "scripts": {
+    "package": "vsce package"
+  },
+
+  "dependencies": {
+    "simple-git": "^3.19.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.org/myworkspace_poc/myrepo_poc.git"
+  }
+}
