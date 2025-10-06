@@ -1,0 +1,60 @@
+{
+  "quest_category": "Deployment Strategies",
+  "quests": [
+    {
+      "id": "deploy_01",
+      "title": "Blue-Green Deployment Initiate",
+      "description": "Implement a basic blue-green deployment strategy",
+      "points": 75,
+      "difficulty": "intermediate",
+      "prerequisites": [],
+      "completion_criteria": "Submit configuration for blue-green deployment with traffic switching",
+      "badge": "blue_green_starter",
+      "tags": ["deployment", "blue-green", "intermediate"]
+    },
+    {
+      "id": "deploy_02",
+      "title": "Canary Release Specialist",
+      "description": "Implement a canary release deployment strategy",
+      "points": 100,
+      "difficulty": "intermediate",
+      "prerequisites": ["deploy_01"],
+      "completion_criteria": "Submit configuration for canary deployment with progressive traffic shifting",
+      "badge": "canary_release_pro",
+      "tags": ["deployment", "canary", "advanced"]
+    },
+    {
+      "id": "deploy_03",
+      "title": "Feature Flag Champion",
+      "description": "Implement feature flag deployment strategy",
+      "points": 85,
+      "difficulty": "intermediate",
+      "prerequisites": [],
+      "completion_criteria": "Submit implementation of feature flags with rollout controls",
+      "badge": "feature_flag_expert",
+      "tags": ["deployment", "feature-flags", "intermediate"]
+    },
+    {
+      "id": "deploy_04",
+      "title": "Rolling Update Master",
+      "description": "Implement zero-downtime rolling updates",
+      "points": 120,
+      "difficulty": "advanced",
+      "prerequisites": ["deploy_01"],
+      "completion_criteria": "Submit configuration for rolling updates with health checks and rollback",
+      "badge": "rolling_update_master",
+      "tags": ["deployment", "rolling-update", "advanced"]
+    },
+    {
+      "id": "deploy_05",
+      "title": "Chaos Engineering Practitioner",
+      "description": "Implement chaos engineering principles in your deployment",
+      "points": 150,
+      "difficulty": "advanced",
+      "prerequisites": ["deploy_02", "deploy_04"],
+      "completion_criteria": "Submit chaos testing integration with deployment pipeline",
+      "badge": "chaos_engineering",
+      "tags": ["deployment", "chaos-engineering", "advanced"]
+    }
+  ]
+}

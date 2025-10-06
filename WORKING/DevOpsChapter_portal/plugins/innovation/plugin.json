@@ -1,0 +1,14 @@
+{
+    "name": "Innovation Portal",
+    "slug": "innovation",
+    "version": "1.0",
+    "description": "Submit and refine ideas for the next big thing.",
+    "pages": [
+        {
+            "name": "Submit Idea",
+            "icon": "💡",
+            "module": "pages.submit_idea",
+            "function": "render"
+        }
+    ]
+}

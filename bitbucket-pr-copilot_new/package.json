@@ -1,0 +1,161 @@
+{
+  "name": "bitbucket-pr-copilot",
+  "displayName": "Bitbucket PR Copilot",
+  "description": "Post Copilot/chat review suggestions to Bitbucket PRs with enhanced features and reliability",
+  "version": "0.2.0",
+  "publisher": "kk",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:bitbucketPRCopilot.quickPost",
+    "onCommand:bitbucketPRCopilot.postBatchForOpenFiles", 
+    "onCommand:bitbucketPRCopilot.batchPostFromClipboard",
+    "onCommand:bitbucketPRCopilot.testGit",
+    "onCommand:bitbucketPRCopilot.clearApiToken",
+    "onCommand:bitbucketPRCopilot.showEnvHelp",
+    "onCommand:bitbucketPRCopilot.showLog",
+    "onCommand:bitbucketPRCopilot.debugEnv",
+    "onCommand:bitbucketPRCopilot.debugAuth",
+    "onCommand:bitbucketPRCopilot.debugConfig",
+    "onCommand:bitbucketPRCopilot.debugAPI",
+    "onCommand:bitbucketPRCopilot.debugFull",
+    "onCommand:bitbucketPRCopilot.compareRequests",
+    "onCommand:bitbucketPRCopilot.clearCommentCache",
+    "onCommand:bitbucketPRCopilot.validateConfig",
+    "onCommand:bitbucketPRCopilot.setupWizard",
+    "onCommand:bitbucketPRCopilot.debugRemoteUrl",
+    "onCommand:bitbucketPRCopilot.debugPRSearch"
+  ],
+
+  "contributes": {
+    "commands": [
+      { "command": "bitbucketPRCopilot.quickPost", "title": "Bitbucket PR Copilot: Quick Post (Active File • manual paste)", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "title": "Bitbucket PR Copilot: Batch Post (Select Open Files • manual paste)", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.batchPostFromClipboard", "title": "Bitbucket PR Copilot: Batch Post from Clipboard (Select Open Files, fallback → all files if no matches)", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.testGit", "title": "Bitbucket PR Copilot: Test Git", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.clearApiToken", "title": "Bitbucket PR Copilot: Clear Bitbucket API Token (SecretStorage)", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.showEnvHelp", "title": "Bitbucket PR Copilot: Show Enterprise Env Setup Help", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugEnv", "title": "Bitbucket PR Copilot: Debug Environment Variables", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugAuth", "title": "Bitbucket PR Copilot: Debug Authentication", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugConfig", "title": "Bitbucket PR Copilot: Debug Configuration", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugAPI", "title": "Bitbucket PR Copilot: Debug API Access", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugFull", "title": "Bitbucket PR Copilot: Full Debug", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.compareRequests", "title": "Bitbucket PR Copilot: Compare Requests", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.clearCommentCache", "title": "Bitbucket PR Copilot: Clear Comment Cache", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.validateConfig", "title": "Bitbucket PR Copilot: Validate Configuration", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.setupWizard", "title": "Bitbucket PR Copilot: Setup Configuration Wizard", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugRemoteUrl", "title": "Bitbucket PR Copilot: Debug Remote URL Parsing", "category": "Bitbucket PR Copilot" },
+      { "command": "bitbucketPRCopilot.debugPRSearch", "title": "Bitbucket PR Copilot: Debug PR Search", "category": "Bitbucket PR Copilot" }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Bitbucket PR Copilot Settings",
+      "properties": {
+        "bitbucketPRCopilot.bitbucketType": {
+          "type": "string",
+          "enum": ["auto", "cloud", "server"],
+          "default": "auto",
+          "description": "Bitbucket instance type (Cloud or Server/Data Center)"
+        },
+        "bitbucketPRCopilot.workspace": {
+          "type": "string",
+          "default": null,
+          "description": "Bitbucket workspace ID (Cloud only - auto-detected from Git remote if not set)"
+        },
+        "bitbucketPRCopilot.project": {
+          "type": "string", 
+          "default": null,
+          "description": "Bitbucket project key (Server/Data Center only - auto-detected from Git remote if not set)"
+        },
+        "bitbucketPRCopilot.repo": {
+          "type": "string",
+          "default": null,
+          "description": "Bitbucket repository name (auto-detected from Git remote if not set)"
+        },
+        "bitbucketPRCopilot.serverUrl": {
+          "type": "string",
+          "default": null,
+          "description": "Bitbucket Server/Data Center base URL (e.g., https://bitbucket.example.com)"
+        },
+        "bitbucketPRCopilot.baseBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "Destination branch for PRs"
+        },
+        "bitbucketPRCopilot.commentStyle": {
+          "type": "string",
+          "enum": ["default", "concise", "professional"],
+          "default": "default",
+          "description": "Style template for comments posted to Bitbucket"
+        },
+        "bitbucketPRCopilot.enableRateLimiting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable rate limiting for Bitbucket API calls (recommended)"
+        },
+        "bitbucketPRCopilot.maxRetries": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "description": "Maximum number of retries for failed API calls"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        { "command": "bitbucketPRCopilot.quickPost", "group": "navigation@9", "when": "editorTextFocus" },
+        { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "group": "navigation@9" },
+        { "command": "bitbucketPRCopilot.batchPostFromClipboard", "group": "navigation@9" }
+      ],
+      "editor/title": [
+        { "command": "bitbucketPRCopilot.quickPost", "group": "navigation@9", "when": "editorTextFocus" }
+      ],
+      "command-palette": [
+        { "command": "bitbucketPRCopilot.quickPost" },
+        { "command": "bitbucketPRCopilot.postBatchForOpenFiles" },
+        { "command": "bitbucketPRCopilot.batchPostFromClipboard" },
+        { "command": "bitbucketPRCopilot.setupWizard" },
+        { "command": "bitbucketPRCopilot.validateConfig" }
+      ]
+    },
+    "keybindings": [
+      { "command": "bitbucketPRCopilot.quickPost", "key": "ctrl+alt+p", "mac": "cmd+alt+p", "when": "editorTextFocus" },
+      { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "key": "ctrl+alt+b", "mac": "cmd+alt+b" },
+      { "command": "bitbucketPRCopilot.batchPostFromClipboard", "key": "ctrl+alt+shift+b", "mac": "cmd+alt+shift+b" }
+    ]
+  },
+
+  "categories": ["Other"],
+  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review", "ai", "collaboration"],
+
+  "scripts": {
+    "vscode:prepublish": "echo 'Prepublish completed'",
+    "package": "vsce package",
+    "compile": "echo 'No compilation needed for JavaScript extension'",
+    "watch": "echo 'No watch script configured'"
+  },
+
+  "dependencies": {
+    "simple-git": "^3.19.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+
+  "repository": {
+    "type": "git", 
+    "url": "https://bitbucket.org/myworkspace_poc/myrepo_poc.git"
+  },
+  
+  "bugs": {
+    "url": "https://bitbucket.org/myworkspace_poc/myrepo_poc/issues"
+  },
+  
+  "homepage": "https://bitbucket.org/myworkspace_poc/myrepo_poc#readme",
+  
+  "license": "MIT"
+}

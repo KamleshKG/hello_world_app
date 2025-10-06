@@ -1,0 +1,55 @@
+# =========================
+#   General ignores
+# =========================
+node_modules/
+dist/
+out/
+build/
+.vscode/
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+#   Environment files
+# =========================
+# Ignore .env everywhere (root and subfolders)
+.env
+.env.*
+**/.env
+**/.env.*
+
+# =========================
+#   VSCode Extension packaging
+# =========================
+.vscode-test/
+*.vsix
+.vscode-insiders/
+*.tgz
+
+# =========================
+#   OS / temporary
+# =========================
+Thumbs.db
+ehthumbs.db
+*.swp
+*.swo
+*.tmp
+*.bak
+
+# =========================
+#   Python (if mixed project)
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pytest_cache/
+.pytest_cache/
+.env/
+.venv/
+venv/
+ENV/
+env/
