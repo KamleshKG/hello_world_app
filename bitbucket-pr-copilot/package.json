@@ -2,7 +2,7 @@
   "name": "bitbucket-pr-copilot",
   "displayName": "Bitbucket PR Copilot PoC",
   "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "kk",
   "engines": { "vscode": "^1.80.0" },
 
@@ -31,17 +31,17 @@
       "properties": {
         "bitbucketPRCopilot.workspace": {
           "type": "string",
-          "default": "myworkspace_poc",
+          "default": "AOLDF",
           "description": "Bitbucket workspace ID/slug"
         },
         "bitbucketPRCopilot.repo": {
           "type": "string",
-          "default": "myrepo_poc",
+          "default": "uipoc",
           "description": "Bitbucket repo slug"
         },
         "bitbucketPRCopilot.baseBranch": {
           "type": "string",
-          "default": "main",
+          "default": "develop",
           "description": "Destination branch for PRs (display only in this PoC)"
         }
       }
@@ -98,6 +98,6 @@
 
   "repository": {
     "type": "git",
-    "url": "https://bitbucket.org/myworkspace_poc/myrepo_poc.git"
+     "url": "https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc"
   }
 }
