@@ -5,10 +5,15 @@ const path = require('path');
 const crypto = require('crypto');
 
 // ---------- DEFAULTS (overridable via settings) ----------
+// const DEFAULTS = {
+//   workspace: 'myworkspace_poc',
+//   repo: 'myrepo_poc',
+//   baseBranch: 'main', // only used if we create a PR
+// };
 const DEFAULTS = {
-  workspace: 'myworkspace_poc',
-  repo: 'myrepo_poc',
-  baseBranch: 'main', // only used if we create a PR
+  workspace: 'AOLDF',
+  repo: 'uipoc',
+  baseBranch: 'develop', // only used if we create a PR
 };
 const SECRET_KEY = 'bitbucket-basic-auth'; // stores base64(email:token)
 
