@@ -128,9 +128,9 @@ async function bbPaginate(url, opts) {
 // ---------- BITBUCKET HELPERS ----------
 function prBase() {
   const { workspace, repo } = getCfg();
-  return `https://api.bitbucket.org/2.0/repositories/${workspace}/${repo}/pullrequests`;
+  return `https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/${workspace}/${repo}/pull-requests/3`;
 }
-
+// https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc/pullrequests
 async function findPRForBranch(branch, authHeader) {
   const { baseBranch } = getCfg();
   const q = `source.branch.name="${branch}" AND state="OPEN" AND destination.branch.name="${baseBranch}"`;
