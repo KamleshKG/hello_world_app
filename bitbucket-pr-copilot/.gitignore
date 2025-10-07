@@ -25,7 +25,6 @@ yarn-error.log*
 #   VSCode Extension packaging
 # =========================
 .vscode-test/
-*.vsix
 .vscode-insiders/
 *.tgz
 
