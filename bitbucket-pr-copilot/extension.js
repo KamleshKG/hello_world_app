@@ -367,9 +367,38 @@ async function postInlinePRComment(workspace, repo, prId, pathRel, toLine, conte
   return bbFetch(url, { method: 'POST', body: JSON.stringify(payload), authHeader });
 }
 
-async function listPRComments(workspace, repo, prId, authHeader) {
-  const url = `${prBase(workspace, repo)}/${prId}/comments?limit=100`;
-  return bbPaginate(url, { authHeader });
+// FIXED: Updated listPRComments function to handle path parameter requirement
+async function listPRComments(workspace, repo, prId, authHeader, filePath = null) {
+  let url;
+  
+  if (filePath) {
+    // Get comments for a specific file
+    url = `${prBase(workspace, repo)}/${prId}/comments?path=${encodeURIComponent(filePath)}&limit=100`;
+  } else {
+    // Try to get all comments (may fail if path is required)
+    url = `${prBase(workspace, repo)}/${prId}/comments?limit=100`;
+  }
+  
+  try {
+    return await bbPaginate(url, { authHeader });
+  } catch (error) {
+    if (error.message.includes('path query parameter is required') && !filePath) {
+      log('Bitbucket requires path parameter. Falling back to activities API...');
+      
+      // Use activities API as fallback - this endpoint doesn't require path parameter
+      const activitiesUrl = `${prBase(workspace, repo)}/${prId}/activities?limit=100`;
+      const activities = await bbPaginate(activitiesUrl, { authHeader });
+      
+      // Filter activities to only get comments
+      const comments = activities.filter(activity => 
+        activity.action === 'COMMENTED' && activity.comment
+      ).map(activity => activity.comment);
+      
+      log(`Extracted ${comments.length} comments from activities API`);
+      return comments;
+    }
+    throw error;
+  }
 }
 
 // ---------- PR SESSION (UPDATED WITH MERGE BRANCH SUPPORT) ----------
@@ -426,10 +455,13 @@ function hashForComment(prId, filePath, toLine /* may be null for general */, co
   return crypto.createHash('sha1').update(target).digest('hex');
 }
 
+// UPDATED: Uses the fixed listPRComments function
 async function ensureExistingCommentHashes(workspace, repo, prId, authHeader) {
   if (existingHashesByPR.has(prId)) return existingHashesByPR.get(prId);
+  
   const values = await listPRComments(workspace, repo, prId, authHeader);
   const set = new Set();
+  
   for (const c of values) {
     const content = c?.text || '';
     const anchor = c?.anchor || {};
@@ -438,6 +470,7 @@ async function ensureExistingCommentHashes(workspace, repo, prId, authHeader) {
     const sig = hashForComment(prId, p, to, content);
     set.add(sig);
   }
+  
   existingHashesByPR.set(prId, set);
   log(`Loaded ${set.size} existing comment signatures from PR #${prId}`);
   return set;
