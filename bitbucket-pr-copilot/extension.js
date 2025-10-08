@@ -21,14 +21,59 @@ function log(msg) {
   } catch { /* noop */ }
 }
 
-// ---------- SETTINGS ----------
-function getCfg() {
+// ---------- SETTINGS (UPDATED WITH PROMPTS) ----------
+async function getCfg() {
   const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
-  return {
-    workspace: cfg.get('workspace') || DEFAULTS.workspace,
-    repo: cfg.get('repo') || DEFAULTS.repo,
-    baseBranch: cfg.get('baseBranch') || DEFAULTS.baseBranch,
-  };
+  
+  let workspace = cfg.get('workspace') || DEFAULTS.workspace;
+  let repo = cfg.get('repo') || DEFAULTS.repo;
+  let baseBranch = cfg.get('baseBranch') || DEFAULTS.baseBranch;
+
+  // If defaults are being used, prompt user to confirm or change
+  if (workspace === DEFAULTS.workspace || repo === DEFAULTS.repo) {
+    const shouldConfigure = await vscode.window.showInformationMessage(
+      `Configure Bitbucket Project/Repo? Current: ${workspace}/${repo}`,
+      'Configure', 'Use Defaults'
+    );
+
+    if (shouldConfigure === 'Configure') {
+      // Prompt for Project Name
+      workspace = await vscode.window.showInputBox({
+        prompt: 'Enter Bitbucket Project Name',
+        value: workspace,
+        placeHolder: 'e.g., AOLDF',
+        ignoreFocusOut: true,
+        validateInput: (value) => value && value.trim() ? null : 'Project name is required'
+      }) || workspace;
+
+      // Prompt for Repo Name
+      repo = await vscode.window.showInputBox({
+        prompt: 'Enter Bitbucket Repository Name',
+        value: repo,
+        placeHolder: 'e.g., uipoc',
+        ignoreFocusOut: true,
+        validateInput: (value) => value && value.trim() ? null : 'Repository name is required'
+      }) || repo;
+
+      // Prompt for Base Branch
+      baseBranch = await vscode.window.showInputBox({
+        prompt: 'Enter Base Branch for PRs',
+        value: baseBranch,
+        placeHolder: 'e.g., develop',
+        ignoreFocusOut: true,
+        validateInput: (value) => value && value.trim() ? null : 'Base branch is required'
+      }) || baseBranch;
+
+      // Save to settings
+      await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
+      await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
+      await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
+      
+      log(`Configuration saved: ${workspace}/${repo} -> ${baseBranch}`);
+    }
+  }
+
+  return { workspace, repo, baseBranch };
 }
 
 // ---------- WORKSPACE ----------
@@ -70,7 +115,7 @@ function hasAllowedExtension(p) { return ALLOW_EXTENSIONS.some(ext => p.toLowerC
 function isExcluded(p) { return EXCLUDE_PATTERNS.some(rx => rx.test(p)); }
 function isSourceLike(p) { return !isExcluded(p) && hasAllowedExtension(p); }
 
-// ---------- AUTH (UPDATED FOR BITBUCKET DATA CENTER) ----------
+// ---------- AUTH ----------
 async function getAuthHeader(context) {
   const sec = context.secrets;
   let basic = await sec.get(SECRET_KEY);
@@ -92,7 +137,7 @@ async function getAuthHeader(context) {
   return `Basic ${basic}`;
 }
 
-// ---------- HTTP HELPERS (UPDATED) ----------
+// ---------- HTTP HELPERS ----------
 async function bbFetch(url, { method='GET', headers={}, body, authHeader }, retries = 2) {
   const options = {
     method,
@@ -135,7 +180,6 @@ async function bbPaginate(url, opts) {
     const page = await bbFetch(next, opts);
     values.push(...(page.values || []));
     
-    // Bitbucket Data Center pagination
     if (page.isLastPage === true || !page.nextPageStart) {
       break;
     }
@@ -145,15 +189,13 @@ async function bbPaginate(url, opts) {
   return values;
 }
 
-// ---------- BITBUCKET DATA CENTER HELPERS (COMPLETELY UPDATED) ----------
-function prBase() {
-  const { workspace, repo } = getCfg();
+// ---------- BITBUCKET DATA CENTER HELPERS ----------
+function prBase(workspace, repo) {
   return `https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/${workspace}/repos/${repo}/pull-requests`;
 }
 
-// NEW: Try to get PR directly by ID
-async function getPRById(prId, authHeader) {
-  const url = `${prBase()}/${prId}`;
+async function getPRById(workspace, repo, prId, authHeader) {
+  const url = `${prBase(workspace, repo)}/${prId}`;
   log(`Getting PR directly by ID: ${url}`);
   
   try {
@@ -166,16 +208,14 @@ async function getPRById(prId, authHeader) {
   }
 }
 
-// UPDATED: Enhanced PR finding with multiple strategies
-async function findPRForBranch(branch, authHeader) {
-  const { baseBranch } = getCfg();
-  
-  log(`=== DEBUG: Finding PR for branch ${branch} -> ${baseBranch} ===`);
+// UPDATED: Enhanced PR finding with configurable project/repo
+async function findPRForBranch(workspace, repo, baseBranch, branch, authHeader) {
+  log(`=== DEBUG: Finding PR for ${workspace}/${repo} branch ${branch} -> ${baseBranch} ===`);
   
   // STRATEGY 1: Try direct access to common PR numbers
-  const commonPRNumbers = [3, 1, 2, 4, 5]; // Add likely PR numbers here
+  const commonPRNumbers = [3, 1, 2, 4, 5];
   for (const prNumber of commonPRNumbers) {
-    const pr = await getPRById(prNumber, authHeader);
+    const pr = await getPRById(workspace, repo, prNumber, authHeader);
     if (pr && pr.state === 'OPEN') {
       const fromRef = pr.fromRef;
       const toRef = pr.toRef;
@@ -193,7 +233,7 @@ async function findPRForBranch(branch, authHeader) {
   
   // STRATEGY 2: Try REST API search
   log(`Trying REST API search...`);
-  const searchUrl = `${prBase()}?state=OPEN&limit=50`;
+  const searchUrl = `${prBase(workspace, repo)}?state=OPEN&limit=50`;
   try {
     const prs = await bbFetch(searchUrl, { authHeader });
     const values = prs.values || [];
@@ -225,8 +265,7 @@ async function findPRForBranch(branch, authHeader) {
   });
   
   if (prId && prId.trim()) {
-    // Verify the manually entered PR exists and matches
-    const pr = await getPRById(prId.trim(), authHeader);
+    const pr = await getPRById(workspace, repo, prId.trim(), authHeader);
     if (pr && pr.state === 'OPEN') {
       const fromRef = pr.fromRef;
       const toRef = pr.toRef;
@@ -247,12 +286,9 @@ async function findPRForBranch(branch, authHeader) {
   return null;
 }
 
-// UPDATED: Better PR creation with error handling
-async function createPullRequest(sourceBranch, authHeader, title, description) {
-  const { workspace, repo, baseBranch } = getCfg();
-  const url = prBase();
+async function createPullRequest(workspace, repo, baseBranch, sourceBranch, authHeader, title, description) {
+  const url = prBase(workspace, repo);
   
-  // Bitbucket Data Center REST API payload format
   const body = {
     title: title || `Auto PR: ${sourceBranch} → ${baseBranch}`,
     description: description || 'Created by Bitbucket PR Copilot.',
@@ -291,12 +327,10 @@ async function createPullRequest(sourceBranch, authHeader, title, description) {
   }
 }
 
-// UPDATED: Bitbucket Data Center comment format
-async function postPRComment(prId, content, authHeader) {
+async function postPRComment(workspace, repo, prId, content, authHeader) {
   log(`Posting general comment to PR #${prId}`);
-  const url = `${prBase()}/${prId}/comments`;
+  const url = `${prBase(workspace, repo)}/${prId}/comments`;
   
-  // Bitbucket Data Center uses 'text' instead of 'content.raw'
   const payload = { 
     text: content
   };
@@ -304,18 +338,16 @@ async function postPRComment(prId, content, authHeader) {
   return bbFetch(url, { method: 'POST', body: JSON.stringify(payload), authHeader });
 }
 
-// UPDATED: Bitbucket Data Center inline comment format
-async function postInlinePRComment(prId, pathRel, toLine, content, authHeader) {
+async function postInlinePRComment(workspace, repo, prId, pathRel, toLine, content, authHeader) {
   log(`Posting inline comment to ${pathRel} at line ${toLine} in PR #${prId}`);
-  const url = `${prBase()}/${prId}/comments`;
+  const url = `${prBase(workspace, repo)}/${prId}/comments`;
   
-  // Bitbucket Data Center inline comment format
   const payload = { 
     text: content,
     anchor: {
       path: pathRel,
       line: toLine,
-      lineType: 'ADDED', // Use 'CONTEXT' if commenting on existing code
+      lineType: 'ADDED',
       fileType: 'FROM'
     }
   };
@@ -323,68 +355,68 @@ async function postInlinePRComment(prId, pathRel, toLine, content, authHeader) {
   return bbFetch(url, { method: 'POST', body: JSON.stringify(payload), authHeader });
 }
 
-// UPDATED: Bitbucket Data Center pagination
-async function listPRComments(prId, authHeader) {
-  const url = `${prBase()}/${prId}/comments?limit=100`;
+async function listPRComments(workspace, repo, prId, authHeader) {
+  const url = `${prBase(workspace, repo)}/${prId}/comments?limit=100`;
   return bbPaginate(url, { authHeader });
 }
 
-// ---------- PR SESSION (UPDATED WITH BETTER ERROR HANDLING) ----------
+// ---------- PR SESSION (UPDATED WITH CONFIGURABLE PROJECT/REPO) ----------
 async function ensurePrForCurrentBranch(context) {
   const authHeader = await getAuthHeader(context);
   const status = await git.status();
   const branch = status.current;
   log(`Current branch=${branch}`);
 
-  const { baseBranch } = getCfg();
+  // Get configuration (may prompt user for project/repo)
+  const { workspace, repo, baseBranch } = await getCfg();
 
   if (branch === baseBranch) {
     vscode.window.showWarningMessage(`You're on ${baseBranch}. Switch to a feature branch to open a PR.`);
-    return { prId: null, authHeader };
+    return { prId: null, authHeader, workspace, repo, baseBranch };
   }
 
-  let prId = await findPRForBranch(branch, authHeader);
+  let prId = await findPRForBranch(workspace, repo, baseBranch, branch, authHeader);
   if (!prId) {
     log(`No PR found for ${branch}. Prompting to create new PR.`);
     const confirm = await vscode.window.showInformationMessage(
-      `No PR found for ${branch}. Create new PR to ${baseBranch}?`, 
+      `No PR found for ${branch}. Create new PR to ${baseBranch} in ${workspace}/${repo}?`, 
       'Create PR', 
       'Cancel'
     );
     
     if (confirm !== 'Create PR') {
       log(`User cancelled PR creation`);
-      return { prId: null, authHeader };
+      return { prId: null, authHeader, workspace, repo, baseBranch };
     }
     
     try {
-      const pr = await createPullRequest(branch, authHeader);
+      const pr = await createPullRequest(workspace, repo, baseBranch, branch, authHeader);
       prId = pr.id;
       log(`Successfully created PR #${prId}`);
     } catch (error) {
       log(`PR creation failed: ${error.message}`);
-      return { prId: null, authHeader };
+      return { prId: null, authHeader, workspace, repo, baseBranch };
     }
   } else {
     log(`Using existing PR #${prId}`);
-    vscode.window.showInformationMessage(`📝 Using PR #${prId} for comments`);
+    vscode.window.showInformationMessage(`📝 Using PR #${prId} in ${workspace}/${repo}`);
   }
   
-  return { prId, authHeader };
+  return { prId, authHeader, workspace, repo, baseBranch };
 }
 
-// ---------- DEDUPE (UPDATED FOR DATA CENTER) ----------
+// ---------- DEDUPE ----------
 function hashForComment(prId, filePath, toLine /* may be null for general */, content) {
   const target = `${prId}|${filePath || ''}|${toLine || 0}|${content}`;
   return crypto.createHash('sha1').update(target).digest('hex');
 }
 
-async function ensureExistingCommentHashes(prId, authHeader) {
+async function ensureExistingCommentHashes(workspace, repo, prId, authHeader) {
   if (existingHashesByPR.has(prId)) return existingHashesByPR.get(prId);
-  const values = await listPRComments(prId, authHeader);
+  const values = await listPRComments(workspace, repo, prId, authHeader);
   const set = new Set();
   for (const c of values) {
-    const content = c?.text || ''; // Data Center uses 'text' not 'content.raw'
+    const content = c?.text || '';
     const anchor = c?.anchor || {};
     const p = anchor.path ? toPosix(anchor.path.toString()) : null;
     const to = typeof anchor.line === 'number' ? anchor.line : null;
@@ -396,26 +428,26 @@ async function ensureExistingCommentHashes(prId, authHeader) {
   return set;
 }
 
-async function postInlineIfNew(prId, pathRel, toLine, content, authHeader) {
-  const existing = await ensureExistingCommentHashes(prId, authHeader);
+async function postInlineIfNew(workspace, repo, prId, pathRel, toLine, content, authHeader) {
+  const existing = await ensureExistingCommentHashes(workspace, repo, prId, authHeader);
   const sig = hashForComment(prId, pathRel, toLine, content);
   if (postedHashes.has(sig) || existing.has(sig)) {
     log(`Deduped inline comment (already exists): ${pathRel}@${toLine}`);
     return;
   }
-  await postInlinePRComment(prId, pathRel, toLine, content, authHeader);
+  await postInlinePRComment(workspace, repo, prId, pathRel, toLine, content, authHeader);
   postedHashes.add(sig);
   existing.add(sig);
 }
 
-async function postGeneralIfNew(prId, content, authHeader) {
-  const existing = await ensureExistingCommentHashes(prId, authHeader);
+async function postGeneralIfNew(workspace, repo, prId, content, authHeader) {
+  const existing = await ensureExistingCommentHashes(workspace, repo, prId, authHeader);
   const sig = hashForComment(prId, null, null, content);
   if (postedHashes.has(sig) || existing.has(sig)) {
     log(`Deduped general comment (already exists)`);
     return;
   }
-  await postPRComment(prId, content, authHeader);
+  await postPRComment(workspace, repo, prId, content, authHeader);
   postedHashes.add(sig);
   existing.add(sig);
 }
@@ -435,29 +467,68 @@ function makeInlineComment(filePath, toLine, feedback) {
   return [`🤖 **Copilot/Chat note @ line ~${toLine} in \`${filePath}\`**`, '', feedback].join('\n');
 }
 
-// ---------- NEW: collect ALL open source files (tabs + visible + loaded) ----------
+// ---------- NEW COMMAND: Configure Settings ----------
+async function cmdConfigureSettings() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const workspace = await vscode.window.showInputBox({
+    prompt: 'Enter Bitbucket Project Name',
+    value: cfg.get('workspace') || DEFAULTS.workspace,
+    placeHolder: 'e.g., AOLDF',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Project name is required'
+  });
+
+  if (!workspace) return;
+
+  const repo = await vscode.window.showInputBox({
+    prompt: 'Enter Bitbucket Repository Name',
+    value: cfg.get('repo') || DEFAULTS.repo,
+    placeHolder: 'e.g., uipoc',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Repository name is required'
+  });
+
+  if (!repo) return;
+
+  const baseBranch = await vscode.window.showInputBox({
+    prompt: 'Enter Base Branch for PRs',
+    value: cfg.get('baseBranch') || DEFAULTS.baseBranch,
+    placeHolder: 'e.g., develop',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Base branch is required'
+  });
+
+  if (!baseBranch) return;
+
+  await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
+  await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
+  await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
+  
+  vscode.window.showInformationMessage(`✅ Configuration saved: ${workspace}/${repo} -> ${baseBranch}`);
+  log(`Configuration updated: ${workspace}/${repo} -> ${baseBranch}`);
+}
+
+// ---------- COLLECT OPEN SOURCE FILES ----------
 function collectOpenSourceFiles() {
   const rel = (uri) => vscode.workspace.asRelativePath(uri.fsPath);
   const set = new Set();
 
-  // Tabs in all groups (works even if not visible)
   try {
     for (const group of vscode.window.tabGroups?.all || []) {
       for (const tab of group.tabs || []) {
         const input = tab.input;
-        const uri = input?.uri || input?.['uri']; // TabInputText-like
+        const uri = input?.uri || input?.['uri'];
         if (uri?.scheme === 'file') set.add(rel(uri));
       }
     }
   } catch (_) { /* ignore */ }
 
-  // Visible editors (old behavior)
   for (const ed of vscode.window.visibleTextEditors || []) {
     const uri = ed.document?.uri;
     if (uri?.scheme === 'file') set.add(rel(uri));
   }
 
-  // Any loaded text documents (hidden/previewed)
   for (const doc of vscode.workspace.textDocuments || []) {
     const uri = doc?.uri;
     if (uri?.scheme === 'file') set.add(rel(uri));
@@ -466,11 +537,12 @@ function collectOpenSourceFiles() {
   return [...set].filter(isSourceLike);
 }
 
-// ---------- CORE COMMANDS ----------
+// ---------- CORE COMMANDS (UPDATED) ----------
 async function cmdTestGit() {
   const status = await git.status();
-  vscode.window.showInformationMessage(`Current branch: ${status.current}`);
-  log(`TestGit: branch=${status.current}`);
+  const { workspace, repo } = await getCfg();
+  vscode.window.showInformationMessage(`Current branch: ${status.current} (Project: ${workspace}/${repo})`);
+  log(`TestGit: branch=${status.current}, project=${workspace}/${repo}`);
 }
 
 async function cmdPostGeneralForCurrentFile(context) {
@@ -479,7 +551,7 @@ async function cmdPostGeneralForCurrentFile(context) {
   const filePath = vscode.workspace.asRelativePath(editor.document.fileName);
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
 
-  const { prId, authHeader } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const feedback = await vscode.window.showInputBox({
@@ -491,12 +563,12 @@ async function cmdPostGeneralForCurrentFile(context) {
 
   const body = makeGeneralComment(filePath, feedback);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post general review to PR #${prId}`, detail: summarize(body), picked: true }],
+    [{ label: `Post general review to PR #${prId} in ${workspace}/${repo}`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview general comment' }
   );
   if (!confirm) return;
 
-  await postGeneralIfNew(prId, body, authHeader);
+  await postGeneralIfNew(workspace, repo, prId, body, authHeader);
   vscode.window.showInformationMessage('✅ Posted general comment.');
 }
 
@@ -507,7 +579,7 @@ async function cmdPostInlineAtSelection(context) {
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
   if (editor.selection.isEmpty) return vscode.window.showWarningMessage('Select the code where you want to attach the comment.');
 
-  const { prId, authHeader } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const line = editor.selection.start.line + 1;
@@ -521,12 +593,12 @@ async function cmdPostInlineAtSelection(context) {
   const body = makeInlineComment(filePath, line, feedback);
   const rel = toPosix(filePath);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post inline to ${rel}:${line}`, detail: summarize(body), picked: true }],
+    [{ label: `Post inline to ${rel}:${line} in PR #${prId}`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview inline comment' }
   );
   if (!confirm) return;
 
-  await postInlineIfNew(prId, rel, line, body, authHeader);
+  await postInlineIfNew(workspace, repo, prId, rel, line, body, authHeader);
   vscode.window.showInformationMessage('✅ Posted inline comment.');
 }
 
@@ -536,7 +608,7 @@ async function cmdPostInlineAtLine(context) {
   const filePath = vscode.workspace.asRelativePath(editor.document.fileName);
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
 
-  const { prId, authHeader } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const lineStr = await vscode.window.showInputBox({
@@ -556,12 +628,12 @@ async function cmdPostInlineAtLine(context) {
   const body = makeInlineComment(filePath, line, feedback);
   const rel = toPosix(filePath);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post inline to ${rel}:${line}`, detail: summarize(body), picked: true }],
+    [{ label: `Post inline to ${rel}:${line} in PR #${prId}`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview inline comment' }
   );
   if (!confirm) return;
 
-  await postInlineIfNew(prId, rel, line, body, authHeader);
+  await postInlineIfNew(workspace, repo, prId, rel, line, body, authHeader);
   vscode.window.showInformationMessage('✅ Posted inline comment.');
 }
 
@@ -571,7 +643,7 @@ async function cmdPostBatchForOpenFiles(context) {
     return vscode.window.showInformationMessage('No open source files to post for.');
   }
 
-  const { prId, authHeader } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   /** @type {{ kind:'inline'|'general', relPosix:string, toLine?:number, body:string }[]} */
@@ -645,17 +717,17 @@ async function cmdPostBatchForOpenFiles(context) {
   for (const i of picked) {
     const p = i.plan;
     if (p.kind === 'inline') {
-      await postInlineIfNew(prId, p.relPosix, p.toLine, p.body, authHeader);
+      await postInlineIfNew(workspace, repo, prId, p.relPosix, p.toLine, p.body, authHeader);
       posted++;
     } else {
-      await postGeneralIfNew(prId, p.body, authHeader);
+      await postGeneralIfNew(workspace, repo, prId, p.body, authHeader);
       posted++;
     }
   }
-  vscode.window.showInformationMessage(`✅ Posted ${posted} comment(s) to PR #${prId}`);
+  vscode.window.showInformationMessage(`✅ Posted ${posted} comment(s) to PR #${prId} in ${workspace}/${repo}`);
 }
 
-// ---------- NEW: Quick Post (wrapper) ----------
+// ---------- QUICK POST ----------
 async function cmdQuickPost(context) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return vscode.window.showWarningMessage('Open a file first.');
@@ -696,6 +768,11 @@ function activate(context) {
     })
   );
 
+  // NEW: Add Configure Settings command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('bitbucketPRCopilot.configureSettings', () => cmdConfigureSettings())
+  );
+
   if (!repoPath) {
     vscode.window.showErrorMessage('Open a folder in VS Code with your Git repo!');
     log('No workspace folder. Commands that need git will not be registered.');
@@ -719,6 +796,7 @@ function activate(context) {
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.postBatchForOpenFiles', () => cmdPostBatchForOpenFiles(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.quickPost', () => cmdQuickPost(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.batchPost', () => cmdPostBatchForOpenFiles(context)));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.configureSettings', () => cmdConfigureSettings()));
 
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.clearApiToken', async () => {
         await context.secrets.delete(SECRET_KEY);

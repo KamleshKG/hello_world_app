@@ -2,7 +2,7 @@
   "name": "bitbucket-pr-copilot",
   "displayName": "Bitbucket PR Copilot PoC",
   "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "publisher": "kk",
   "engines": { "vscode": "^1.80.0" },
 
