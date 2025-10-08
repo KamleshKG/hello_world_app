@@ -1,18 +1,24 @@
+// extension.js
 const vscode = require('vscode');
 const simpleGit = require('simple-git');
 const path = require('path');
 const crypto = require('crypto');
 
-// ---------- DEFAULTS ----------
+// ---------- DEFAULTS (overridable via settings) ----------
+// const DEFAULTS = {
+//   workspace: 'myworkspace_poc',
+//   repo: 'myrepo_poc',
+//   baseBranch: 'main', // only used if we create a PR
+// };
 const DEFAULTS = {
   workspace: 'AOLDF',
   repo: 'uipoc',
-  baseBranch: 'develop',
+  baseBranch: 'develop', // only used if we create a PR
 };
-const SECRET_KEY = 'bitbucket-basic-auth';
+const SECRET_KEY = 'bitbucket-basic-auth'; // stores base64(email:token)
 
 // ---------- LOGGING ----------
-let output;
+let output; // created in activate()
 function log(msg) {
   try {
     const time = new Date().toISOString();
@@ -33,10 +39,15 @@ function getCfg() {
 // ---------- WORKSPACE ----------
 const workspaceFolders = vscode.workspace.workspaceFolders;
 const repoPath = workspaceFolders?.[0]?.uri.fsPath;
+
+/** @type import('simple-git').SimpleGit */
 let git = null;
+
+// Dedupe store (per run) + cross-run de-dupe via existing PR comments
 const postedHashes = new Set();
 const existingHashesByPR = new Map();
 
+// Resolve and re-root simple-git at the real .git top level
 async function initGitAtRepoRoot(startPath) {
   const tmp = simpleGit(startPath);
   const root = (await tmp.revparse(['--show-toplevel'])).trim();
@@ -60,212 +71,109 @@ const EXCLUDE_PATTERNS = [
   /\.(png|jpg|jpeg|gif|svg|ico|pdf|zip|gz|bz2|7z|mp4|mp3|wav|woff2?)$/i
 ];
 const ALLOW_EXTENSIONS = [
-  '.js','.jsx','.ts','.tsx','.py','.java','.kt','.go','.rb','.php',
-  '.cs','.cpp','.c','.h','.hpp','.json','.yaml','.yml'
+  '.js','.jsx','.ts','.tsx',
+  '.py','.java','.kt','.go','.rb','.php',
+  '.cs','.cpp','.c','.h','.hpp',
+  '.json','.yaml','.yml'
 ];
 function hasAllowedExtension(p) { return ALLOW_EXTENSIONS.some(ext => p.toLowerCase().endsWith(ext)); }
 function isExcluded(p) { return EXCLUDE_PATTERNS.some(rx => rx.test(p)); }
 function isSourceLike(p) { return !isExcluded(p) && hasAllowedExtension(p); }
 
-// ---------- AUTH (UPDATED FOR DATA CENTER) ----------
+// ---------- AUTH ----------
 async function getAuthHeader(context) {
   const sec = context.secrets;
   let basic = await sec.get(SECRET_KEY);
   if (!basic) {
-    const username = await vscode.window.showInputBox({ 
-      prompt: 'Bitbucket Username', 
-      ignoreFocusOut: true 
-    });
-    const password = await vscode.window.showInputBox({ 
-      prompt: 'Bitbucket Password', 
-      password: true, 
-      ignoreFocusOut: true 
-    });
-    if (!username || !password) throw new Error('Bitbucket credentials are required.');
-    basic = Buffer.from(`${username}:${password}`).toString('base64');
+    const email = await vscode.window.showInputBox({ prompt: 'Bitbucket email', ignoreFocusOut: true });
+    const token = await vscode.window.showInputBox({ prompt: 'Bitbucket App Password / API Token', password: true, ignoreFocusOut: true });
+    if (!email || !token) throw new Error('Bitbucket credentials are required.');
+    basic = Buffer.from(`${email}:${token}`).toString('base64');
     await sec.store(SECRET_KEY, basic);
     log('Stored Bitbucket credentials in SecretStorage.');
   }
   return `Basic ${basic}`;
 }
 
-// ---------- HTTP HELPERS (UPDATED) ----------
+// ---------- HTTP HELPERS ----------
 async function bbFetch(url, { method='GET', headers={}, body, authHeader }, retries = 2) {
-  const options = {
+  const res = await fetch(url, {
     method,
-    headers: { 
-      'Accept': 'application/json', 
-      'Content-Type': 'application/json', 
-      'Authorization': authHeader, 
-      ...headers 
-    },
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'Authorization': authHeader, ...headers },
     body
-  };
-  
-  log(`Making ${method} request to: ${url}`);
-  const res = await fetch(url, options);
-  
-  if (res.status === 401) throw new Error('Unauthorized (401). Check Bitbucket credentials.');
+  });
+  if (res.status === 401) throw new Error('Unauthorized (401). Check Bitbucket token scopes.');
   if (res.status === 429 && retries > 0) {
     const wait = parseInt(res.headers.get('Retry-After') || '2', 10) * 1000;
-    log(`Rate limited; retrying in ${wait} ms`);
+    log(`Rate limited by Bitbucket; retrying in ${wait} ms`);
     await new Promise(r => setTimeout(r, wait));
     return bbFetch(url, { method, headers, body, authHeader }, retries - 1);
   }
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    log(`HTTP ${res.status} Error for ${url}: ${errorText}`);
-    throw new Error(`${method} ${url} failed: ${res.status} ${errorText}`);
-  }
-  
+  if (!res.ok) throw new Error(`${method} ${url} failed: ${res.status} ${await res.text()}`);
   const ct = res.headers.get('content-type') || '';
   return ct.includes('application/json') ? res.json() : res.text();
 }
-
 async function bbPaginate(url, opts) {
   const values = [];
   let next = url;
-  let start = 0;
-  const limit = 25; // Bitbucket Server default pagination
-  
-  while (next) {
+  while (true) {
     const page = await bbFetch(next, opts);
     values.push(...(page.values || []));
-    
-    // Bitbucket Server pagination
-    if (page.isLastPage === true || !page.nextPageStart) {
-      break;
-    }
-    start = page.nextPageStart;
-    next = `${url}${url.includes('?') ? '&' : '?'}start=${start}`;
+    if (!page.next) break;
+    next = page.next;
   }
   return values;
 }
 
-// ---------- BITBUCKET DATA CENTER URLS (UPDATED) ----------
+// ---------- BITBUCKET HELPERS ----------
 function prBase() {
   const { workspace, repo } = getCfg();
-  // Bitbucket Data Center REST API format
   return `https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/${workspace}/repos/${repo}/pull-requests`;
 }
-
+// https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc/pullrequests
 async function findPRForBranch(branch, authHeader) {
   const { baseBranch } = getCfg();
-  
-  // Bitbucket Data Center API - get all OPEN PRs and filter
-  const url = `${prBase()}?state=OPEN&limit=50`;
-  log(`Searching for PRs with branch: ${branch} -> ${baseBranch}`);
-  
-  try {
-    const prs = await bbFetch(url, { authHeader });
-    const values = prs.values || [];
-    
-    log(`Found ${values.length} open PRs total`);
-    
-    // Find PR where source branch matches current branch and destination is baseBranch
-    for (const pr of values) {
-      const fromRef = pr.fromRef;
-      const toRef = pr.toRef;
-      
-      if (fromRef && toRef) {
-        const sourceBranch = fromRef.displayId || fromRef.id?.replace('refs/heads/', '');
-        const targetBranch = toRef.displayId || toRef.id?.replace('refs/heads/', '');
-        
-        log(`Checking PR ${pr.id}: ${sourceBranch} -> ${targetBranch}`);
-        
-        if (sourceBranch === branch && targetBranch === baseBranch) {
-          log(`Found matching PR: ${pr.id}`);
-          return pr.id;
-        }
-      }
-    }
-    
-    log(`No open PR found for branch ${branch} targeting ${baseBranch}`);
-    return null;
-  } catch (error) {
-    log(`Error finding PR for branch ${branch}: ${error.message}`);
-    return null;
-  }
+  const q = `source.branch.name="${branch}" AND state="OPEN" AND destination.branch.name="${baseBranch}"`;
+  const url = `${prBase()}?q=${encodeURIComponent(q)}&fields=values.id,values.title`;
+  const vals = await bbPaginate(url, { authHeader });
+  log(`findPRForBranch: branch=${branch}, openPRs=${vals.length}`);
+  return vals[0]?.id || null;
 }
 
 async function createPullRequest(sourceBranch, authHeader, title, description) {
-  const { workspace, repo, baseBranch } = getCfg();
+  const { baseBranch } = getCfg();
   const url = prBase();
-  
-  // Bitbucket Data Center payload format
   const body = {
     title: title || `Auto PR: ${sourceBranch} → ${baseBranch}`,
     description: description || 'Created by Bitbucket PR Copilot.',
-    fromRef: {
-      id: `refs/heads/${sourceBranch}`,
-      repository: {
-        slug: repo,
-        project: { key: workspace }
-      }
-    },
-    toRef: {
-      id: `refs/heads/${baseBranch}`,
-      repository: {
-        slug: repo,
-        project: { key: workspace }
-      }
-    }
+    source: { branch: { name: sourceBranch } },
+    destination: { branch: { name: baseBranch } },
+    close_source_branch: false
   };
-  
-  log(`Creating PR: ${JSON.stringify(body)}`);
-  
-  try {
-    const pr = await bbFetch(url, { method: 'POST', body: JSON.stringify(body), authHeader });
-    log(`PR creation response: ${JSON.stringify(pr)}`);
-    
-    if (pr && pr.id) {
-      return { id: pr.id };
-    } else {
-      throw new Error('PR creation response missing ID');
-    }
-  } catch (error) {
-    log(`PR creation failed: ${error.message}`);
-    throw error;
-  }
+  log(`Creating PR for branch=${sourceBranch}`);
+  return bbFetch(url, { method: 'POST', body: JSON.stringify(body), authHeader });
 }
 
 async function postPRComment(prId, content, authHeader) {
   log(`Posting general comment to PR #${prId}`);
   const url = `${prBase()}/${prId}/comments`;
-  
-  // Bitbucket Data Center uses 'text' instead of 'content.raw'
-  const payload = { 
-    text: content
-  };
-  
+  const payload = { content: { raw: content } };
   return bbFetch(url, { method: 'POST', body: JSON.stringify(payload), authHeader });
 }
 
 async function postInlinePRComment(prId, pathRel, toLine, content, authHeader) {
   log(`Posting inline comment to ${pathRel} at line ${toLine} in PR #${prId}`);
   const url = `${prBase()}/${prId}/comments`;
-  
-  // Bitbucket Data Center inline comment format
-  const payload = { 
-    text: content,
-    anchor: {
-      path: pathRel,
-      line: toLine,
-      lineType: 'ADDED',
-      fileType: 'FROM'
-    }
-  };
-  
+  const payload = { content: { raw: content }, inline: { path: pathRel, to: toLine } };
   return bbFetch(url, { method: 'POST', body: JSON.stringify(payload), authHeader });
 }
 
 async function listPRComments(prId, authHeader) {
-  const url = `${prBase()}/${prId}/comments?limit=100`;
+  const url = `${prBase()}/${prId}/comments?pagelen=100`;
   return bbPaginate(url, { authHeader });
 }
 
-// ---------- PR SESSION (UPDATED WITH BETTER ERROR HANDLING) ----------
+// ---------- PR SESSION ----------
 async function ensurePrForCurrentBranch(context) {
   const authHeader = await getAuthHeader(context);
   const status = await git.status();
@@ -286,27 +194,13 @@ async function ensurePrForCurrentBranch(context) {
       `No PR found for ${branch}. Create PR to ${baseBranch}?`, 'Create PR', 'Cancel'
     );
     if (confirm !== 'Create PR') return { prId: null, authHeader };
-    
-    try {
-      const pr = await createPullRequest(branch, authHeader);
-      prId = pr.id;
-      vscode.window.showInformationMessage(`Created PR #${prId}.`);
-      log(`Successfully created PR #${prId}`);
-    } catch (error) {
-      vscode.window.showErrorMessage(`Failed to create PR: ${error.message}`);
-      log(`PR creation error: ${error.message}`);
-      return { prId: null, authHeader };
-    }
-  } else {
-    log(`Using existing PR #${prId}`);
+    const pr = await createPullRequest(branch, authHeader);
+    prId = pr.id;
+    vscode.window.showInformationMessage(`Created PR #${prId}.`);
   }
-  
+  log(`Using PR #${prId}`);
   return { prId, authHeader };
 }
-
-// ... REST OF THE CODE (DEDUPE, UI HELPERS, COMMANDS) REMAINS THE SAME ...
-// [Keep all the existing dedupe, UI helpers, and command functions exactly as they are]
-
 
 // ---------- DEDUPE ----------
 function hashForComment(prId, filePath, toLine /* may be null for general */, content) {
