@@ -9,6 +9,7 @@ const DEFAULTS = {
   workspace: 'AOLDF',
   repo: 'uipoc',
   baseBranch: 'develop',
+  mergeBranch: '' // New: branch to merge FROM
 };
 const SECRET_KEY = 'bitbucket-basic-auth';
 
@@ -21,18 +22,19 @@ function log(msg) {
   } catch { /* noop */ }
 }
 
-// ---------- SETTINGS (UPDATED WITH PROMPTS) ----------
+// ---------- SETTINGS (UPDATED WITH MERGE BRANCH) ----------
 async function getCfg() {
   const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
   
   let workspace = cfg.get('workspace') || DEFAULTS.workspace;
   let repo = cfg.get('repo') || DEFAULTS.repo;
   let baseBranch = cfg.get('baseBranch') || DEFAULTS.baseBranch;
+  let mergeBranch = cfg.get('mergeBranch') || DEFAULTS.mergeBranch;
 
   // If defaults are being used, prompt user to confirm or change
-  if (workspace === DEFAULTS.workspace || repo === DEFAULTS.repo) {
+  if (workspace === DEFAULTS.workspace || repo === DEFAULTS.repo || !mergeBranch) {
     const shouldConfigure = await vscode.window.showInformationMessage(
-      `Configure Bitbucket Project/Repo? Current: ${workspace}/${repo}`,
+      `Configure Bitbucket Project/Repo? Current: ${workspace}/${repo} (merge: ${mergeBranch || 'not set'})`,
       'Configure', 'Use Defaults'
     );
 
@@ -55,25 +57,35 @@ async function getCfg() {
         validateInput: (value) => value && value.trim() ? null : 'Repository name is required'
       }) || repo;
 
-      // Prompt for Base Branch
+      // Prompt for Base Branch (target branch - where PR will be merged TO)
       baseBranch = await vscode.window.showInputBox({
-        prompt: 'Enter Base Branch for PRs',
+        prompt: 'Enter Target Branch for PRs (where PR will be merged TO)',
         value: baseBranch,
-        placeHolder: 'e.g., develop',
+        placeHolder: 'e.g., develop, feature/oct_copilot_2',
         ignoreFocusOut: true,
-        validateInput: (value) => value && value.trim() ? null : 'Base branch is required'
+        validateInput: (value) => value && value.trim() ? null : 'Target branch is required'
       }) || baseBranch;
+
+      // Prompt for Merge Branch (source branch - where PR will be merged FROM)
+      mergeBranch = await vscode.window.showInputBox({
+        prompt: 'Enter Source Branch for PRs (where PR will be merged FROM)',
+        value: mergeBranch,
+        placeHolder: 'e.g., feature/oct_copilot_1, main',
+        ignoreFocusOut: true,
+        validateInput: (value) => value && value.trim() ? null : 'Source branch is required'
+      }) || mergeBranch;
 
       // Save to settings
       await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
       await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
       await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
+      await cfg.update('mergeBranch', mergeBranch, vscode.ConfigurationTarget.Global);
       
-      log(`Configuration saved: ${workspace}/${repo} -> ${baseBranch}`);
+      log(`Configuration saved: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
     }
   }
 
-  return { workspace, repo, baseBranch };
+  return { workspace, repo, baseBranch, mergeBranch };
 }
 
 // ---------- WORKSPACE ----------
@@ -360,49 +372,52 @@ async function listPRComments(workspace, repo, prId, authHeader) {
   return bbPaginate(url, { authHeader });
 }
 
-// ---------- PR SESSION (UPDATED WITH CONFIGURABLE PROJECT/REPO) ----------
+// ---------- PR SESSION (UPDATED WITH MERGE BRANCH SUPPORT) ----------
 async function ensurePrForCurrentBranch(context) {
   const authHeader = await getAuthHeader(context);
   const status = await git.status();
   const branch = status.current;
   log(`Current branch=${branch}`);
 
-  // Get configuration (may prompt user for project/repo)
-  const { workspace, repo, baseBranch } = await getCfg();
+  // Get configuration (may prompt user for project/repo/merge branch)
+  const { workspace, repo, baseBranch, mergeBranch } = await getCfg();
 
-  if (branch === baseBranch) {
-    vscode.window.showWarningMessage(`You're on ${baseBranch}. Switch to a feature branch to open a PR.`);
-    return { prId: null, authHeader, workspace, repo, baseBranch };
+  // Determine source branch: use mergeBranch if specified, otherwise current branch
+  const sourceBranch = mergeBranch || branch;
+
+  if (branch === baseBranch && !mergeBranch) {
+    vscode.window.showWarningMessage(`You're on ${baseBranch}. Switch to a feature branch or set merge branch.`);
+    return { prId: null, authHeader, workspace, repo, baseBranch, sourceBranch };
   }
 
-  let prId = await findPRForBranch(workspace, repo, baseBranch, branch, authHeader);
+  let prId = await findPRForBranch(workspace, repo, baseBranch, sourceBranch, authHeader);
   if (!prId) {
-    log(`No PR found for ${branch}. Prompting to create new PR.`);
+    log(`No PR found for ${sourceBranch}. Prompting to create new PR.`);
     const confirm = await vscode.window.showInformationMessage(
-      `No PR found for ${branch}. Create new PR to ${baseBranch} in ${workspace}/${repo}?`, 
+      `No PR found for ${sourceBranch}. Create new PR to ${baseBranch} in ${workspace}/${repo}?`, 
       'Create PR', 
       'Cancel'
     );
     
     if (confirm !== 'Create PR') {
       log(`User cancelled PR creation`);
-      return { prId: null, authHeader, workspace, repo, baseBranch };
+      return { prId: null, authHeader, workspace, repo, baseBranch, sourceBranch };
     }
     
     try {
-      const pr = await createPullRequest(workspace, repo, baseBranch, branch, authHeader);
+      const pr = await createPullRequest(workspace, repo, baseBranch, sourceBranch, authHeader);
       prId = pr.id;
       log(`Successfully created PR #${prId}`);
     } catch (error) {
       log(`PR creation failed: ${error.message}`);
-      return { prId: null, authHeader, workspace, repo, baseBranch };
+      return { prId: null, authHeader, workspace, repo, baseBranch, sourceBranch };
     }
   } else {
     log(`Using existing PR #${prId}`);
-    vscode.window.showInformationMessage(`📝 Using PR #${prId} in ${workspace}/${repo}`);
+    vscode.window.showInformationMessage(`📝 Using PR #${prId} in ${workspace}/${repo} (${sourceBranch} -> ${baseBranch})`);
   }
   
-  return { prId, authHeader, workspace, repo, baseBranch };
+  return { prId, authHeader, workspace, repo, baseBranch, sourceBranch };
 }
 
 // ---------- DEDUPE ----------
@@ -467,7 +482,9 @@ function makeInlineComment(filePath, toLine, feedback) {
   return [`🤖 **Copilot/Chat note @ line ~${toLine} in \`${filePath}\`**`, '', feedback].join('\n');
 }
 
-// ---------- NEW COMMAND: Configure Settings ----------
+// ---------- NEW COMMANDS: CONFIGURATION MANAGEMENT ----------
+
+// Command 1: Configure Settings (Project, Repo, Branches)
 async function cmdConfigureSettings() {
   const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
   
@@ -492,21 +509,77 @@ async function cmdConfigureSettings() {
   if (!repo) return;
 
   const baseBranch = await vscode.window.showInputBox({
-    prompt: 'Enter Base Branch for PRs',
+    prompt: 'Enter Target Branch for PRs (where PR will be merged TO)',
     value: cfg.get('baseBranch') || DEFAULTS.baseBranch,
-    placeHolder: 'e.g., develop',
+    placeHolder: 'e.g., develop, feature/oct_copilot_2',
     ignoreFocusOut: true,
-    validateInput: (value) => value && value.trim() ? null : 'Base branch is required'
+    validateInput: (value) => value && value.trim() ? null : 'Target branch is required'
   });
 
   if (!baseBranch) return;
 
+  const mergeBranch = await vscode.window.showInputBox({
+    prompt: 'Enter Source Branch for PRs (where PR will be merged FROM)',
+    value: cfg.get('mergeBranch') || DEFAULTS.mergeBranch,
+    placeHolder: 'e.g., feature/oct_copilot_1, main',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Source branch is required'
+  });
+
+  if (!mergeBranch) return;
+
   await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
   await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
   await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
+  await cfg.update('mergeBranch', mergeBranch, vscode.ConfigurationTarget.Global);
   
-  vscode.window.showInformationMessage(`✅ Configuration saved: ${workspace}/${repo} -> ${baseBranch}`);
-  log(`Configuration updated: ${workspace}/${repo} -> ${baseBranch}`);
+  vscode.window.showInformationMessage(`✅ Configuration saved: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
+  log(`Configuration updated: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
+}
+
+// Command 2: Clean All Settings (Reset to defaults)
+async function cmdCleanAllSettings() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const confirm = await vscode.window.showWarningMessage(
+    'Are you sure you want to reset ALL settings to defaults? This will clear project, repo, and branch configurations.',
+    'Yes, Reset All',
+    'Cancel'
+  );
+
+  if (confirm === 'Yes, Reset All') {
+    await cfg.update('workspace', DEFAULTS.workspace, vscode.ConfigurationTarget.Global);
+    await cfg.update('repo', DEFAULTS.repo, vscode.ConfigurationTarget.Global);
+    await cfg.update('baseBranch', DEFAULTS.baseBranch, vscode.ConfigurationTarget.Global);
+    await cfg.update('mergeBranch', DEFAULTS.mergeBranch, vscode.ConfigurationTarget.Global);
+    
+    vscode.window.showInformationMessage('✅ All settings reset to defaults');
+    log('All settings reset to defaults');
+  }
+}
+
+// Command 3: Show Current Configuration
+async function cmdShowCurrentConfig() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const workspace = cfg.get('workspace') || DEFAULTS.workspace;
+  const repo = cfg.get('repo') || DEFAULTS.repo;
+  const baseBranch = cfg.get('baseBranch') || DEFAULTS.baseBranch;
+  const mergeBranch = cfg.get('mergeBranch') || DEFAULTS.mergeBranch;
+  
+  const configInfo = `
+📋 Current Configuration:
+
+Project: ${workspace}
+Repository: ${repo}
+Target Branch (merge TO): ${baseBranch}
+Source Branch (merge FROM): ${mergeBranch || 'Current branch'}
+
+PR Flow: ${mergeBranch || 'Current branch'} → ${baseBranch}
+  `.trim();
+
+  vscode.window.showInformationMessage(configInfo, { modal: true });
+  log(`Current config: ${workspace}/${repo} | ${mergeBranch || 'Current'} -> ${baseBranch}`);
 }
 
 // ---------- COLLECT OPEN SOURCE FILES ----------
@@ -537,12 +610,13 @@ function collectOpenSourceFiles() {
   return [...set].filter(isSourceLike);
 }
 
-// ---------- CORE COMMANDS (UPDATED) ----------
+// ---------- CORE COMMANDS (UPDATED WITH MERGE BRANCH) ----------
 async function cmdTestGit() {
   const status = await git.status();
-  const { workspace, repo } = await getCfg();
-  vscode.window.showInformationMessage(`Current branch: ${status.current} (Project: ${workspace}/${repo})`);
-  log(`TestGit: branch=${status.current}, project=${workspace}/${repo}`);
+  const { workspace, repo, baseBranch, mergeBranch } = await getCfg();
+  const branchInfo = `Current branch: ${status.current} | Project: ${workspace}/${repo} | Merge: ${mergeBranch || 'Current'} -> ${baseBranch}`;
+  vscode.window.showInformationMessage(branchInfo);
+  log(`TestGit: ${branchInfo}`);
 }
 
 async function cmdPostGeneralForCurrentFile(context) {
@@ -551,7 +625,7 @@ async function cmdPostGeneralForCurrentFile(context) {
   const filePath = vscode.workspace.asRelativePath(editor.document.fileName);
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
 
-  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const feedback = await vscode.window.showInputBox({
@@ -563,7 +637,7 @@ async function cmdPostGeneralForCurrentFile(context) {
 
   const body = makeGeneralComment(filePath, feedback);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post general review to PR #${prId} in ${workspace}/${repo}`, detail: summarize(body), picked: true }],
+    [{ label: `Post general review to PR #${prId} (${sourceBranch} -> ${baseBranch})`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview general comment' }
   );
   if (!confirm) return;
@@ -579,7 +653,7 @@ async function cmdPostInlineAtSelection(context) {
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
   if (editor.selection.isEmpty) return vscode.window.showWarningMessage('Select the code where you want to attach the comment.');
 
-  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const line = editor.selection.start.line + 1;
@@ -593,7 +667,7 @@ async function cmdPostInlineAtSelection(context) {
   const body = makeInlineComment(filePath, line, feedback);
   const rel = toPosix(filePath);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post inline to ${rel}:${line} in PR #${prId}`, detail: summarize(body), picked: true }],
+    [{ label: `Post inline to ${rel}:${line} in PR #${prId} (${sourceBranch} -> ${baseBranch})`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview inline comment' }
   );
   if (!confirm) return;
@@ -608,7 +682,7 @@ async function cmdPostInlineAtLine(context) {
   const filePath = vscode.workspace.asRelativePath(editor.document.fileName);
   if (!isSourceLike(filePath)) return vscode.window.showWarningMessage('Not a source file.');
 
-  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const lineStr = await vscode.window.showInputBox({
@@ -628,7 +702,7 @@ async function cmdPostInlineAtLine(context) {
   const body = makeInlineComment(filePath, line, feedback);
   const rel = toPosix(filePath);
   const confirm = await vscode.window.showQuickPick(
-    [{ label: `Post inline to ${rel}:${line} in PR #${prId}`, detail: summarize(body), picked: true }],
+    [{ label: `Post inline to ${rel}:${line} in PR #${prId} (${sourceBranch} -> ${baseBranch})`, detail: summarize(body), picked: true }],
     { canPickMany: false, title: 'Preview inline comment' }
   );
   if (!confirm) return;
@@ -643,7 +717,7 @@ async function cmdPostBatchForOpenFiles(context) {
     return vscode.window.showInformationMessage('No open source files to post for.');
   }
 
-  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+  const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   /** @type {{ kind:'inline'|'general', relPosix:string, toLine?:number, body:string }[]} */
@@ -724,7 +798,7 @@ async function cmdPostBatchForOpenFiles(context) {
       posted++;
     }
   }
-  vscode.window.showInformationMessage(`✅ Posted ${posted} comment(s) to PR #${prId} in ${workspace}/${repo}`);
+  vscode.window.showInformationMessage(`✅ Posted ${posted} comment(s) to PR #${prId} (${sourceBranch} -> ${baseBranch})`);
 }
 
 // ---------- QUICK POST ----------
@@ -768,11 +842,6 @@ function activate(context) {
     })
   );
 
-  // NEW: Add Configure Settings command
-  context.subscriptions.push(
-    vscode.commands.registerCommand('bitbucketPRCopilot.configureSettings', () => cmdConfigureSettings())
-  );
-
   if (!repoPath) {
     vscode.window.showErrorMessage('Open a folder in VS Code with your Git repo!');
     log('No workspace folder. Commands that need git will not be registered.');
@@ -789,6 +858,7 @@ function activate(context) {
         git = simpleGit(repoPath);
       }
 
+      // Register all commands
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.testGit', () => cmdTestGit()));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.postGeneralForCurrentFile', () => cmdPostGeneralForCurrentFile(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.postInlineAtSelection', () => cmdPostInlineAtSelection(context)));
@@ -796,7 +866,11 @@ function activate(context) {
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.postBatchForOpenFiles', () => cmdPostBatchForOpenFiles(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.quickPost', () => cmdQuickPost(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.batchPost', () => cmdPostBatchForOpenFiles(context)));
+      
+      // NEW: Configuration management commands
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.configureSettings', () => cmdConfigureSettings()));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.cleanAllSettings', () => cmdCleanAllSettings()));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.showCurrentConfig', () => cmdShowCurrentConfig()));
 
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.clearApiToken', async () => {
         await context.secrets.delete(SECRET_KEY);

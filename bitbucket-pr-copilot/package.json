@@ -2,7 +2,7 @@
   "name": "bitbucket-pr-copilot",
   "displayName": "Bitbucket PR Copilot PoC",
   "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "publisher": "kk",
   "engines": { "vscode": "^1.80.0" },
 
@@ -14,7 +14,10 @@
     "onCommand:bitbucketPRCopilot.batchPost",
     "onCommand:bitbucketPRCopilot.testGit",
     "onCommand:bitbucketPRCopilot.clearApiToken",
-    "onCommand:bitbucketPRCopilot.showLog"
+    "onCommand:bitbucketPRCopilot.showLog",
+    "onCommand:bitbucketPRCopilot.configureSettings",
+    "onCommand:bitbucketPRCopilot.cleanAllSettings",
+    "onCommand:bitbucketPRCopilot.showCurrentConfig"
   ],
 
   "contributes": {
@@ -23,7 +26,10 @@
       { "command": "bitbucketPRCopilot.batchPost", "title": "Bitbucket PR Copilot: Batch Post (All Open Files)" },
       { "command": "bitbucketPRCopilot.testGit", "title": "Bitbucket PR Copilot: Test Git" },
       { "command": "bitbucketPRCopilot.clearApiToken", "title": "Bitbucket PR Copilot: Clear Bitbucket API Token" },
-      { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log" }
+      { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log" },
+      { "command": "bitbucketPRCopilot.configureSettings", "title": "Bitbucket PR Copilot: Configure Settings (Project/Repo/Branches)" },
+      { "command": "bitbucketPRCopilot.cleanAllSettings", "title": "Bitbucket PR Copilot: Clean All Settings (Reset to Defaults)" },
+      { "command": "bitbucketPRCopilot.showCurrentConfig", "title": "Bitbucket PR Copilot: Show Current Configuration" }
     ],
     "configuration": {
       "type": "object",
@@ -42,7 +48,12 @@
         "bitbucketPRCopilot.baseBranch": {
           "type": "string",
           "default": "develop",
-          "description": "Destination branch for PRs (display only in this PoC)"
+          "description": "Target branch for PRs (where PR will be merged TO)"
+        },
+        "bitbucketPRCopilot.mergeBranch": {
+          "type": "string",
+          "default": "",
+          "description": "Source branch for PRs (where PR will be merged FROM - leave empty for current branch)"
         }
       }
     },
@@ -56,6 +67,14 @@
         {
           "command": "bitbucketPRCopilot.batchPost",
           "group": "navigation@9"
+        },
+        {
+          "command": "bitbucketPRCopilot.configureSettings",
+          "group": "navigation@10"
+        },
+        {
+          "command": "bitbucketPRCopilot.showCurrentConfig",
+          "group": "navigation@10"
         }
       ],
       "editor/title": [
@@ -63,6 +82,20 @@
           "command": "bitbucketPRCopilot.quickPost",
           "group": "navigation@9",
           "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "bitbucketPRCopilot.configureSettings",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.cleanAllSettings",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.showCurrentConfig",
+          "when": "true"
         }
       ]
     },
@@ -83,7 +116,7 @@
   },
 
   "categories": ["Other"],
-  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review"],
+  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review", "configuration"],
 
   "scripts": {
     "package": "vsce package"
@@ -98,6 +131,6 @@
 
   "repository": {
     "type": "git",
-     "url": "https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc"
+    "url": "https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc"
   }
 }
