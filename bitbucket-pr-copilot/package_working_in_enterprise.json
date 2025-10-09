@@ -2,7 +2,7 @@
   "name": "bitbucket-pr-copilot",
   "displayName": "Bitbucket PR Copilot PoC",
   "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
-  "version": "0.5.0",
+  "version": "0.4.8",
   "publisher": "kk",
   "engines": { "vscode": "^1.80.0" },
 
@@ -17,9 +17,7 @@
     "onCommand:bitbucketPRCopilot.showLog",
     "onCommand:bitbucketPRCopilot.configureSettings",
     "onCommand:bitbucketPRCopilot.cleanAllSettings",
-    "onCommand:bitbucketPRCopilot.showCurrentConfig",
-    "onCommand:bitbucketPRCopilot.sendDiffToCopilot",
-    "onCommand:bitbucketPRCopilot.autoCopilotReview"
+    "onCommand:bitbucketPRCopilot.showCurrentConfig"
   ],
 
   "contributes": {
@@ -31,9 +29,7 @@
       { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log" },
       { "command": "bitbucketPRCopilot.configureSettings", "title": "Bitbucket PR Copilot: Configure Settings (Project/Repo/Branches)" },
       { "command": "bitbucketPRCopilot.cleanAllSettings", "title": "Bitbucket PR Copilot: Clean All Settings (Reset to Defaults)" },
-      { "command": "bitbucketPRCopilot.showCurrentConfig", "title": "Bitbucket PR Copilot: Show Current Configuration" },
-      { "command": "bitbucketPRCopilot.sendDiffToCopilot", "title": "Bitbucket PR Copilot: Send PR Diff to Copilot Chat" },
-      { "command": "bitbucketPRCopilot.autoCopilotReview", "title": "Bitbucket PR Copilot: Auto Copilot Review" }
+      { "command": "bitbucketPRCopilot.showCurrentConfig", "title": "Bitbucket PR Copilot: Show Current Configuration" }
     ],
     "configuration": {
       "type": "object",
@@ -41,17 +37,17 @@
       "properties": {
         "bitbucketPRCopilot.workspace": {
           "type": "string",
-          "default": "CODEENG",
+          "default": "AOLDF",
           "description": "Bitbucket workspace ID/slug"
         },
         "bitbucketPRCopilot.repo": {
           "type": "string",
-          "default": "project_poc",
+          "default": "uipoc",
           "description": "Bitbucket repo slug"
         },
         "bitbucketPRCopilot.baseBranch": {
           "type": "string",
-          "default": "feature/oct_copilot_2",
+          "default": "develop",
           "description": "Target branch for PRs (where PR will be merged TO)"
         },
         "bitbucketPRCopilot.mergeBranch": {
@@ -71,10 +67,6 @@
         {
           "command": "bitbucketPRCopilot.batchPost",
           "group": "navigation@9"
-        },
-        {
-          "command": "bitbucketPRCopilot.sendDiffToCopilot",
-          "group": "navigation@8"
         },
         {
           "command": "bitbucketPRCopilot.configureSettings",
@@ -104,14 +96,6 @@
         {
           "command": "bitbucketPRCopilot.showCurrentConfig",
           "when": "true"
-        },
-        {
-          "command": "bitbucketPRCopilot.sendDiffToCopilot",
-          "when": "true"
-        },
-        {
-          "command": "bitbucketPRCopilot.autoCopilotReview",
-          "when": "true"
         }
       ]
     },
@@ -132,7 +116,7 @@
   },
 
   "categories": ["Other"],
-  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review", "configuration", "ai"],
+  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review", "configuration"],
 
   "scripts": {
     "package": "vsce package"
