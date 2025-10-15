@@ -1,0 +1,38 @@
+Extraction
+Detection
+Resolver
+Feedback
+Example
+
+
+
+1) Multi level Segment  (Breaking Complex text into Claims)
+['and','then','comma']
+Out of Distribution (OOD) detector
+complete replacement Resolver
+Feedback - correct command
+Example - aws
+
+2) Context Claim Boundaries (Finding where to split and merge)
+[although , so ] 
+Temporal Resolver
+Temporal Detector
+
+
+Exmaple-
+
+3) Discourse Analysis  (Understanding Relationships)
+['because', 'therefore', 'but', 'however']
+
+
+
+4) Hierarchical Typing (Categorizing Claim types)
+
+5) Semantic Understanding 
+Tools
+
+6) claim context Isolation
+References
+
+7) Logical analysis
+If , Then
