@@ -401,14 +401,52 @@ async function listPRComments(workspace, repo, prId, authHeader, filePath = null
   }
 }
 
-// ---------- PR DIFF FUNCTIONS (NEW) ----------
+// ---------- PR DIFF FUNCTIONS (FIXED) ----------
+// ---------- PR DIFF FUNCTIONS (MORE ROBUST) ----------
 async function getPRDiff(workspace, repo, prId, authHeader) {
   const url = `${prBase(workspace, repo)}/${prId}/diff`;
   log(`Fetching PR diff for #${prId}`);
   
   try {
-    const diff = await bbFetch(url, { authHeader });
-    return diff;
+    const diffResponse = await bbFetch(url, { 
+      authHeader,
+      headers: {
+        'Accept': 'text/plain' // Try to get plain text diff
+      }
+    });
+    
+    log(`Diff response type: ${typeof diffResponse}`);
+    
+    // Handle different response formats
+    if (typeof diffResponse === 'string') {
+      // Direct string response (what we want)
+      log(`Got string diff: ${diffResponse.length} characters`);
+      return diffResponse;
+    } else if (diffResponse && typeof diffResponse === 'object') {
+      // JSON response - extract diff content
+      if (diffResponse.diffs && Array.isArray(diffResponse.diffs)) {
+        // Standard Bitbucket format
+        const diffContents = diffResponse.diffs.map(diff => {
+          return diff.diff || diff.content || '';
+        }).filter(Boolean);
+        
+        const fullDiffText = diffContents.join('\n');
+        log(`Extracted diff from JSON: ${diffContents.length} files, ${fullDiffText.length} characters`);
+        return fullDiffText;
+      } else if (diffResponse.toString) {
+        // Try to convert to string
+        const diffText = diffResponse.toString();
+        log(`Converted object to string: ${diffText.length} characters`);
+        return diffText;
+      } else {
+        // Last resort: stringify the whole object
+        const diffText = JSON.stringify(diffResponse);
+        log(`Stringified JSON response: ${diffText.length} characters`);
+        return diffText;
+      }
+    } else {
+      throw new Error(`Unexpected diff response type: ${typeof diffResponse}`);
+    }
   } catch (error) {
     log(`Failed to fetch PR diff: ${error.message}`);
     throw error;
@@ -993,6 +1031,26 @@ async function cmdSendDiffToCopilotChat(context) {
   }
 }
 
+// Add this to your commands section
+async function cmdDebugPRDiff(context) {
+  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+  if (!prId) return;
+
+  try {
+    const url = `${prBase(workspace, repo)}/${prId}/diff`;
+    log(`DEBUG: Fetching from: ${url}`);
+    
+    const response = await bbFetch(url, { authHeader });
+    log(`DEBUG: Response type: ${typeof response}`);
+    log(`DEBUG: Response keys: ${Object.keys(response || {}).join(', ')}`);
+    log(`DEBUG: Full response: ${JSON.stringify(response, null, 2).substring(0, 1000)}`);
+    
+    vscode.window.showInformationMessage(`Check logs for debug info. Response type: ${typeof response}`);
+  } catch (error) {
+    vscode.window.showErrorMessage(`Debug failed: ${error.message}`);
+  }
+}
+
 // Command: Auto Copilot Review with different review types
 async function cmdAutoCopilotReview(context) {
   const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
@@ -1140,6 +1198,8 @@ function activate(context) {
         vscode.window.showInformationMessage('Bitbucket credentials cleared.');
         log('Cleared Bitbucket credentials.');
       }));
+      // Register the debug command in activate function:
+context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.debugPRDiff', () => cmdDebugPRDiff(context)));
 
       log('Commands registered.');
     } catch (e) {
