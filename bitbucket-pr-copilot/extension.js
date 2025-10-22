@@ -401,8 +401,7 @@ async function listPRComments(workspace, repo, prId, authHeader, filePath = null
   }
 }
 
-// ---------- PR DIFF FUNCTIONS (FIXED) ----------
-// ---------- PR DIFF FUNCTIONS (MORE ROBUST) ----------
+// ---------- FIXED PR DIFF PARSING FOR src:// dst:// FORMAT ----------
 async function getPRDiff(workspace, repo, prId, authHeader) {
   const url = `${prBase(workspace, repo)}/${prId}/diff`;
   log(`Fetching PR diff for #${prId}`);
@@ -411,41 +410,21 @@ async function getPRDiff(workspace, repo, prId, authHeader) {
     const diffResponse = await bbFetch(url, { 
       authHeader,
       headers: {
-        'Accept': 'text/plain' // Try to get plain text diff
+        'Accept': 'text/plain'
       }
     });
     
     log(`Diff response type: ${typeof diffResponse}`);
+    log(`First 500 chars of diff: ${typeof diffResponse === 'string' ? diffResponse.substring(0, 500) : 'Not a string'}`);
     
-    // Handle different response formats
     if (typeof diffResponse === 'string') {
-      // Direct string response (what we want)
       log(`Got string diff: ${diffResponse.length} characters`);
       return diffResponse;
-    } else if (diffResponse && typeof diffResponse === 'object') {
-      // JSON response - extract diff content
-      if (diffResponse.diffs && Array.isArray(diffResponse.diffs)) {
-        // Standard Bitbucket format
-        const diffContents = diffResponse.diffs.map(diff => {
-          return diff.diff || diff.content || '';
-        }).filter(Boolean);
-        
-        const fullDiffText = diffContents.join('\n');
-        log(`Extracted diff from JSON: ${diffContents.length} files, ${fullDiffText.length} characters`);
-        return fullDiffText;
-      } else if (diffResponse.toString) {
-        // Try to convert to string
-        const diffText = diffResponse.toString();
-        log(`Converted object to string: ${diffText.length} characters`);
-        return diffText;
-      } else {
-        // Last resort: stringify the whole object
-        const diffText = JSON.stringify(diffResponse);
-        log(`Stringified JSON response: ${diffText.length} characters`);
-        return diffText;
-      }
     } else {
-      throw new Error(`Unexpected diff response type: ${typeof diffResponse}`);
+      // Try to extract diff from object response
+      const diffText = JSON.stringify(diffResponse);
+      log(`Converted object to string: ${diffText.length} characters`);
+      return diffText;
     }
   } catch (error) {
     log(`Failed to fetch PR diff: ${error.message}`);
@@ -459,66 +438,130 @@ function parseDiffToChunks(diffText) {
   let currentFile = null;
   let currentChunk = null;
   
-  for (const line of lines) {
-    // File header
+  log(`Parsing diff with ${lines.length} lines`);
+  log(`Sample of diff content:\n${diffText.substring(0, 500)}`);
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // File header with src:// and dst:// format
     if (line.startsWith('diff --git')) {
       if (currentChunk && currentChunk.lines.length > 0) {
         chunks.push(currentChunk);
       }
-      const fileMatch = line.match(/diff --git a\/(.+?) b\/(.+)/);
+      
+      // Extract filename from src:// or dst:// format
+      const fileMatch = line.match(/diff --git src:\/\/(.+?) dst:\/\/(.+)/);
       if (fileMatch) {
-        currentFile = fileMatch[1]; // Get the 'a/' file path
-        currentChunk = { file: currentFile, lines: [] };
+        currentFile = fileMatch[2]; // Use the destination file (new file)
+        currentChunk = { file: currentFile, lines: [line] };
+        log(`Found file with src://dst:// format: ${currentFile}`);
+      } else {
+        // Fallback to standard a/b format
+        const standardMatch = line.match(/diff --git a\/(.+?) b\/(.+)/);
+        if (standardMatch) {
+          currentFile = standardMatch[2]; // Use the 'b/' file (new file)
+          currentChunk = { file: currentFile, lines: [line] };
+          log(`Found file with standard a/b format: ${currentFile}`);
+        }
       }
     }
-    // Chunk header
-    else if (line.startsWith('@@')) {
+    // New file mode line
+    else if (line.startsWith('new file mode') && currentChunk) {
+      currentChunk.lines.push(line);
+    }
+    // Index line
+    else if (line.startsWith('index') && currentChunk) {
+      currentChunk.lines.push(line);
+    }
+    // Source file (---) with src:// format
+    else if (line.startsWith('---')) {
       if (currentChunk) {
         currentChunk.lines.push(line);
       }
+      // Extract source file name
+      const srcMatch = line.match(/--- src:\/\/(.+)/);
+      if (srcMatch && !currentFile) {
+        currentFile = srcMatch[1];
+      }
     }
-    // Actual code changes (added lines only)
-    else if (line.startsWith('+') && !line.startsWith('+++')) {
+    // Destination file (+++) with dst:// format
+    else if (line.startsWith('+++')) {
       if (currentChunk) {
-        currentChunk.lines.push(line.substring(1)); // Remove the '+' prefix
+        currentChunk.lines.push(line);
+      }
+      // Extract destination file name (this is the actual file we care about)
+      const dstMatch = line.match(/\+\+\+ dst:\/\/(.+)/);
+      if (dstMatch) {
+        currentFile = dstMatch[1];
+        if (!currentChunk) {
+          currentChunk = { file: currentFile, lines: [line] };
+        } else if (currentChunk.file !== currentFile) {
+          // Update the chunk file name
+          currentChunk.file = currentFile;
+        }
+        log(`Set file from +++ line: ${currentFile}`);
       }
     }
-    // Context lines (optional - include for better context)
-    else if (line.startsWith(' ') && currentChunk) {
-      // Include some context lines for better understanding
-      if (currentChunk.lines.length < 100) { // Limit context
-        currentChunk.lines.push(line.substring(1));
+    // Chunk header (@@ ... @@)
+    else if (line.startsWith('@@')) {
+      if (currentChunk) {
+        currentChunk.lines.push(line);
+      } else if (currentFile) {
+        currentChunk = { file: currentFile, lines: [line] };
       }
+    }
+    // Actual content lines (both added and context)
+    else if (currentChunk) {
+      currentChunk.lines.push(line);
     }
   }
   
-  // Push the last chunk
+  // Push the last chunk if it exists
   if (currentChunk && currentChunk.lines.length > 0) {
     chunks.push(currentChunk);
   }
   
   log(`Parsed ${chunks.length} diff chunks from PR`);
+  chunks.forEach((chunk, i) => {
+    log(`Chunk ${i}: "${chunk.file}" (${chunk.lines.length} lines)`);
+    log(`First few lines of chunk ${i}: ${chunk.lines.slice(0, 3).join(' | ')}`);
+  });
+  
   return chunks;
 }
 
 function formatDiffForCopilot(chunks) {
+  if (chunks.length === 0) {
+    log('No chunks to format for Copilot');
+    return 'No changes found in PR diff.';
+  }
+  
   const sections = [];
   
   for (const chunk of chunks) {
-    if (chunk.lines.length > 0 && isSourceLike(chunk.file)) {
-      sections.push(`File: ${chunk.file}`);
-      sections.push('Changes:');
-      sections.push('```');
-      sections.push(...chunk.lines.slice(0, 100)); // Limit to avoid token limits
+    if (chunk.lines.length > 0 && chunk.file) {
+      sections.push(`## File: ${chunk.file}`);
+      sections.push('```diff');
+      // Include all diff lines for proper context
+      sections.push(...chunk.lines);
       sections.push('```');
       sections.push(''); // Empty line between files
     }
   }
   
   const result = sections.join('\n');
-  log(`Formatted diff for Copilot: ${result.length} characters`);
+  log(`Formatted diff for Copilot: ${result.length} characters, ${sections.filter(s => s.includes('## File:')).length} files`);
+  
+  // Log a sample of the formatted output
+  if (result.length > 0) {
+    log(`Formatted diff sample (first 500 chars):\n${result.substring(0, 500)}`);
+  }
+  
   return result;
 }
+
+// ========== MISSING CORE FUNCTIONS (RESTORED) ==========
 
 // ---------- PR SESSION (UPDATED WITH MERGE BRANCH SUPPORT) ----------
 async function ensurePrForCurrentBranch(context) {
@@ -632,106 +675,6 @@ function makeGeneralComment(filePath, feedback) {
 
 function makeInlineComment(filePath, toLine, feedback) {
   return [`🤖 **Copilot/Chat note @ line ~${toLine} in \`${filePath}\`**`, '', feedback].join('\n');
-}
-
-// ---------- NEW COMMANDS: CONFIGURATION MANAGEMENT ----------
-
-// Command 1: Configure Settings (Project, Repo, Branches)
-async function cmdConfigureSettings() {
-  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
-  
-  const workspace = await vscode.window.showInputBox({
-    prompt: 'Enter Bitbucket Project Name',
-    value: cfg.get('workspace') || DEFAULTS.workspace,
-    placeHolder: 'e.g., AOLDF',
-    ignoreFocusOut: true,
-    validateInput: (value) => value && value.trim() ? null : 'Project name is required'
-  });
-
-  if (!workspace) return;
-
-  const repo = await vscode.window.showInputBox({
-    prompt: 'Enter Bitbucket Repository Name',
-    value: cfg.get('repo') || DEFAULTS.repo,
-    placeHolder: 'e.g., uipoc',
-    ignoreFocusOut: true,
-    validateInput: (value) => value && value.trim() ? null : 'Repository name is required'
-  });
-
-  if (!repo) return;
-
-  const baseBranch = await vscode.window.showInputBox({
-    prompt: 'Enter Target Branch for PRs (where PR will be merged TO)',
-    value: cfg.get('baseBranch') || DEFAULTS.baseBranch,
-    placeHolder: 'e.g., develop, feature/oct_copilot_2',
-    ignoreFocusOut: true,
-    validateInput: (value) => value && value.trim() ? null : 'Target branch is required'
-  });
-
-  if (!baseBranch) return;
-
-  const mergeBranch = await vscode.window.showInputBox({
-    prompt: 'Enter Source Branch for PRs (where PR will be merged FROM)',
-    value: cfg.get('mergeBranch') || DEFAULTS.mergeBranch,
-    placeHolder: 'e.g., feature/oct_copilot_1, main',
-    ignoreFocusOut: true,
-    validateInput: (value) => value && value.trim() ? null : 'Source branch is required'
-  });
-
-  if (!mergeBranch) return;
-
-  await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
-  await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
-  await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
-  await cfg.update('mergeBranch', mergeBranch, vscode.ConfigurationTarget.Global);
-  
-  vscode.window.showInformationMessage(`✅ Configuration saved: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
-  log(`Configuration updated: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
-}
-
-// Command 2: Clean All Settings (Reset to defaults)
-async function cmdCleanAllSettings() {
-  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
-  
-  const confirm = await vscode.window.showWarningMessage(
-    'Are you sure you want to reset ALL settings to defaults? This will clear project, repo, and branch configurations.',
-    'Yes, Reset All',
-    'Cancel'
-  );
-
-  if (confirm === 'Yes, Reset All') {
-    await cfg.update('workspace', DEFAULTS.workspace, vscode.ConfigurationTarget.Global);
-    await cfg.update('repo', DEFAULTS.repo, vscode.ConfigurationTarget.Global);
-    await cfg.update('baseBranch', DEFAULTS.baseBranch, vscode.ConfigurationTarget.Global);
-    await cfg.update('mergeBranch', DEFAULTS.mergeBranch, vscode.ConfigurationTarget.Global);
-    
-    vscode.window.showInformationMessage('✅ All settings reset to defaults');
-    log('All settings reset to defaults');
-  }
-}
-
-// Command 3: Show Current Configuration
-async function cmdShowCurrentConfig() {
-  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
-  
-  const workspace = cfg.get('workspace') || DEFAULTS.workspace;
-  const repo = cfg.get('repo') || DEFAULTS.repo;
-  const baseBranch = cfg.get('baseBranch') || DEFAULTS.baseBranch;
-  const mergeBranch = cfg.get('mergeBranch') || DEFAULTS.mergeBranch;
-  
-  const configInfo = `
-📋 Current Configuration:
-
-Project: ${workspace}
-Repository: ${repo}
-Target Branch (merge TO): ${baseBranch}
-Source Branch (merge FROM): ${mergeBranch || 'Current branch'}
-
-PR Flow: ${mergeBranch || 'Current branch'} → ${baseBranch}
-  `.trim();
-
-  vscode.window.showInformationMessage(configInfo, { modal: true });
-  log(`Current config: ${workspace}/${repo} | ${mergeBranch || 'Current'} -> ${baseBranch}`);
 }
 
 // ---------- COLLECT OPEN SOURCE FILES ----------
@@ -975,18 +918,117 @@ async function cmdQuickPost(context) {
   if (choice.val === 'gen') return cmdPostGeneralForCurrentFile(context);
 }
 
-// ---------- NEW COMMANDS: COPILOT CHAT INTEGRATION ----------
+// ---------- NEW COMMANDS: CONFIGURATION MANAGEMENT ----------
 
-// Command: Send PR Diff to Copilot Chat
+// Command 1: Configure Settings (Project, Repo, Branches)
+async function cmdConfigureSettings() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const workspace = await vscode.window.showInputBox({
+    prompt: 'Enter Bitbucket Project Name',
+    value: cfg.get('workspace') || DEFAULTS.workspace,
+    placeHolder: 'e.g., AOLDF',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Project name is required'
+  });
+
+  if (!workspace) return;
+
+  const repo = await vscode.window.showInputBox({
+    prompt: 'Enter Bitbucket Repository Name',
+    value: cfg.get('repo') || DEFAULTS.repo,
+    placeHolder: 'e.g., uipoc',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Repository name is required'
+  });
+
+  if (!repo) return;
+
+  const baseBranch = await vscode.window.showInputBox({
+    prompt: 'Enter Target Branch for PRs (where PR will be merged TO)',
+    value: cfg.get('baseBranch') || DEFAULTS.baseBranch,
+    placeHolder: 'e.g., develop, feature/oct_copilot_2',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Target branch is required'
+  });
+
+  if (!baseBranch) return;
+
+  const mergeBranch = await vscode.window.showInputBox({
+    prompt: 'Enter Source Branch for PRs (where PR will be merged FROM)',
+    value: cfg.get('mergeBranch') || DEFAULTS.mergeBranch,
+    placeHolder: 'e.g., feature/oct_copilot_1, main',
+    ignoreFocusOut: true,
+    validateInput: (value) => value && value.trim() ? null : 'Source branch is required'
+  });
+
+  if (!mergeBranch) return;
+
+  await cfg.update('workspace', workspace, vscode.ConfigurationTarget.Global);
+  await cfg.update('repo', repo, vscode.ConfigurationTarget.Global);
+  await cfg.update('baseBranch', baseBranch, vscode.ConfigurationTarget.Global);
+  await cfg.update('mergeBranch', mergeBranch, vscode.ConfigurationTarget.Global);
+  
+  vscode.window.showInformationMessage(`✅ Configuration saved: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
+  log(`Configuration updated: ${workspace}/${repo} | Merge: ${mergeBranch} -> ${baseBranch}`);
+}
+
+// Command 2: Clean All Settings (Reset to defaults)
+async function cmdCleanAllSettings() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const confirm = await vscode.window.showWarningMessage(
+    'Are you sure you want to reset ALL settings to defaults? This will clear project, repo, and branch configurations.',
+    'Yes, Reset All',
+    'Cancel'
+  );
+
+  if (confirm === 'Yes, Reset All') {
+    await cfg.update('workspace', DEFAULTS.workspace, vscode.ConfigurationTarget.Global);
+    await cfg.update('repo', DEFAULTS.repo, vscode.ConfigurationTarget.Global);
+    await cfg.update('baseBranch', DEFAULTS.baseBranch, vscode.ConfigurationTarget.Global);
+    await cfg.update('mergeBranch', DEFAULTS.mergeBranch, vscode.ConfigurationTarget.Global);
+    
+    vscode.window.showInformationMessage('✅ All settings reset to defaults');
+    log('All settings reset to defaults');
+  }
+}
+
+// Command 3: Show Current Configuration
+async function cmdShowCurrentConfig() {
+  const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+  
+  const workspace = cfg.get('workspace') || DEFAULTS.workspace;
+  const repo = cfg.get('repo') || DEFAULTS.repo;
+  const baseBranch = cfg.get('baseBranch') || DEFAULTS.baseBranch;
+  const mergeBranch = cfg.get('mergeBranch') || DEFAULTS.mergeBranch;
+  
+  const configInfo = `
+📋 Current Configuration:
+
+Project: ${workspace}
+Repository: ${repo}
+Target Branch (merge TO): ${baseBranch}
+Source Branch (merge FROM): ${mergeBranch || 'Current branch'}
+
+PR Flow: ${mergeBranch || 'Current branch'} → ${baseBranch}
+  `.trim();
+
+  vscode.window.showInformationMessage(configInfo, { modal: true });
+  log(`Current config: ${workspace}/${repo} | ${mergeBranch || 'Current'} -> ${baseBranch}`);
+}
+
+// ---------- ENHANCED COPILOT INTEGRATION ----------
+
+// Improved: Auto-paste in Copilot Chat with automated suggestions
 async function cmdSendDiffToCopilotChat(context) {
   const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   try {
-    // Show progress
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Notification,
-      title: `Fetching PR #${prId} diff...`,
+      title: `Preparing PR #${prId} for Copilot Review...`,
       cancellable: false
     }, async (progress) => {
       // Get PR diff
@@ -994,7 +1036,7 @@ async function cmdSendDiffToCopilotChat(context) {
       const diffText = await getPRDiff(workspace, repo, prId, authHeader);
       
       // Parse diff
-      progress.report({ message: 'Parsing changes...' });
+      progress.report({ message: 'Analyzing changes...' });
       const chunks = parseDiffToChunks(diffText);
       const copilotPrompt = formatDiffForCopilot(chunks);
       
@@ -1003,67 +1045,311 @@ async function cmdSendDiffToCopilotChat(context) {
         return;
       }
 
-      // Prepare the full prompt for Copilot
-      const fullPrompt = `Please review these code changes from a pull request and provide suggestions for improvements, potential issues, or best practices:\n\n${copilotPrompt}\n\nPlease provide specific, actionable feedback:`;
+      // Create comprehensive automated review prompt
+      const automatedPrompt = `Please conduct a comprehensive code review of this pull request. Focus on:
+
+🔒 **Security Issues:**
+- Input validation and sanitization
+- Authentication/authorization flaws
+- Data exposure risks
+- SQL injection or XSS vulnerabilities
+- Secure coding practices
+
+📋 **Best Practices & Code Quality:**
+- Code readability and maintainability
+- Proper error handling
+- Code duplication
+- Performance considerations
+- Consistency with project patterns
+
+⚡ **Performance:**
+- Inefficient algorithms or data structures
+- Memory leaks or resource management
+- Database query optimization
+- Caching opportunities
+
+🎯 **Specific Feedback:**
+For each file, provide specific, actionable suggestions. If you find issues, suggest the exact code changes needed.
+
+**Code Changes to Review:**
+${copilotPrompt}
+
+Please provide your review in a structured format with clear recommendations.`;
       
-      // Copy to clipboard and open Copilot chat
-      progress.report({ message: 'Preparing for Copilot chat...' });
-      await vscode.env.clipboard.writeText(fullPrompt);
+      // Auto-paste in Copilot chat
+      progress.report({ message: 'Opening Copilot Chat...' });
       
-      // Open Copilot chat panel
+      // Open Copilot chat and wait for it to be ready
       await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
       
-      vscode.window.showInformationMessage(
-        `PR diff copied to clipboard! Paste in Copilot Chat and ask for review.`,
-        'Open Chat'
-      ).then(selection => {
-        if (selection === 'Open Chat') {
-          vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-        }
-      });
-      
-      log(`Copied PR #${prId} diff to clipboard for Copilot review`);
+      // Wait a moment for chat to open, then paste the prompt
+      setTimeout(async () => {
+        // Use clipboard and simulate paste
+        await vscode.env.clipboard.writeText(automatedPrompt);
+        await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+        
+        log(`Auto-pasted PR #${prId} review prompt in Copilot Chat`);
+        
+        vscode.window.showInformationMessage(
+          `PR #${prId} review prompt auto-pasted in Copilot Chat!`,
+          'Post Comments to Bitbucket',
+          'Show Prompt'
+        ).then(async (selection) => {
+          if (selection === 'Post Comments to Bitbucket') {
+            // Store the current PR context for later use
+            const prContext = { prId, authHeader, workspace, repo, chunks };
+            context.globalState.update('currentPRContext', prContext);
+            vscode.window.showInformationMessage('Ready to post Copilot suggestions to Bitbucket. Get suggestions from Copilot first.');
+          } else if (selection === 'Show Prompt') {
+            const preview = vscode.window.createWebviewPanel(
+              'prReviewPrompt',
+              `PR #${prId} Review Prompt`,
+              vscode.ViewColumn.One,
+              { enableScripts: true }
+            );
+            preview.webview.html = `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <style>
+                  body { padding: 20px; font-family: var(--vscode-font-family); }
+                  pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; white-space: pre-wrap; }
+                  .note { background: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0; }
+                </style>
+              </head>
+              <body>
+                <h2>PR #${prId} Automated Review Prompt</h2>
+                <div class="note">
+                  <strong>Note:</strong> This prompt has been auto-pasted in Copilot Chat. 
+                  After getting suggestions, use "Post Comments to Bitbucket" to automatically post them.
+                </div>
+                <pre>${automatedPrompt.substring(0, 3000)}${automatedPrompt.length > 3000 ? '...' : ''}</pre>
+                <p><em>${automatedPrompt.length} characters total</em></p>
+              </body>
+              </html>
+            `;
+          }
+        });
+      }, 1000);
     });
     
   } catch (error) {
-    vscode.window.showErrorMessage(`Failed to get PR diff: ${error.message}`);
-    log(`PR diff error: ${error.message}`);
+    vscode.window.showErrorMessage(`Failed to prepare Copilot review: ${error.message}`);
+    log(`Copilot review error: ${error.message}`);
   }
 }
 
-// Add this to your commands section
-async function cmdDebugPRDiff(context) {
-  const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
-  if (!prId) return;
-
+// NEW: Parse Copilot response and post to Bitbucket
+async function parseAndPostCopilotResponse(context, copilotResponse) {
   try {
-    const url = `${prBase(workspace, repo)}/${prId}/diff`;
-    log(`DEBUG: Fetching from: ${url}`);
+    const prContext = context.globalState.get('currentPRContext');
+    if (!prContext) {
+      vscode.window.showWarningMessage('No PR context found. Please use "Send PR Diff to Copilot" first.');
+      return;
+    }
+
+    const { prId, authHeader, workspace, repo, chunks } = prContext;
     
-    const response = await bbFetch(url, { authHeader });
-    log(`DEBUG: Response type: ${typeof response}`);
-    log(`DEBUG: Response keys: ${Object.keys(response || {}).join(', ')}`);
-    log(`DEBUG: Full response: ${JSON.stringify(response, null, 2).substring(0, 1000)}`);
+    // Parse the Copilot response to extract file-specific comments
+    const comments = parseCopilotResponse(copilotResponse, chunks);
     
-    vscode.window.showInformationMessage(`Check logs for debug info. Response type: ${typeof response}`);
+    if (comments.length === 0) {
+      vscode.window.showWarningMessage('No actionable comments found in Copilot response.');
+      return;
+    }
+
+    // Show preview and let user select which comments to post
+    const commentItems = comments.map((comment, index) => ({
+      label: `${comment.file}${comment.line ? `:${comment.line}` : ''}`,
+      description: comment.type || 'General',
+      detail: comment.content.substring(0, 100) + '...',
+      picked: true,
+      comment
+    }));
+
+    const selectedComments = await vscode.window.showQuickPick(commentItems, {
+      title: 'Select comments to post to Bitbucket PR',
+      canPickMany: true,
+      placeHolder: 'Choose which Copilot suggestions to post'
+    });
+
+    if (!selectedComments || selectedComments.length === 0) return;
+
+    // Post selected comments
+    let postedCount = 0;
+    for (const item of selectedComments) {
+      const comment = item.comment;
+      
+      if (comment.line && comment.line > 0) {
+        // Inline comment
+        await postInlineIfNew(workspace, repo, prId, comment.file, comment.line, comment.content, authHeader);
+      } else {
+        // General comment for file
+        await postGeneralIfNew(workspace, repo, prId, comment.content, authHeader);
+      }
+      postedCount++;
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    vscode.window.showInformationMessage(`✅ Posted ${postedCount} comments to PR #${prId}`);
+    
   } catch (error) {
-    vscode.window.showErrorMessage(`Debug failed: ${error.message}`);
+    vscode.window.showErrorMessage(`Failed to post Copilot comments: ${error.message}`);
+    log(`Post Copilot comments error: ${error.message}`);
   }
 }
 
-// Command: Auto Copilot Review with different review types
+// NEW: Parse Copilot response into structured comments
+function parseCopilotResponse(response, chunks) {
+  const comments = [];
+  const lines = response.split('\n');
+  let currentFile = null;
+  let currentComment = null;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Detect file headers
+    const fileMatch = line.match(/File:\s*(.+?)(?:\s*\(Line\s*(\d+)\))?$/i) || 
+                     line.match(/##\s*(.+?)(?:\s*\(Line\s*(\d+)\))?$/i);
+    
+    if (fileMatch) {
+      currentFile = fileMatch[1];
+      const lineNum = fileMatch[2] ? parseInt(fileMatch[2]) : null;
+      
+      if (currentComment && currentComment.content.trim()) {
+        comments.push(currentComment);
+      }
+      
+      currentComment = {
+        file: currentFile,
+        line: lineNum,
+        content: '',
+        type: line.toLowerCase().includes('security') ? 'Security' : 
+              line.toLowerCase().includes('performance') ? 'Performance' : 'General'
+      };
+    }
+    // Detect line-specific comments
+    else if (line.match(/Line\s*(\d+)/i) && currentFile) {
+      const lineMatch = line.match(/Line\s*(\d+)/i);
+      const lineNum = parseInt(lineMatch[1]);
+      
+      if (currentComment && currentComment.content.trim()) {
+        comments.push(currentComment);
+      }
+      
+      currentComment = {
+        file: currentFile,
+        line: lineNum,
+        content: line + '\n',
+        type: 'Inline'
+      };
+    }
+    // Accumulate comment content
+    else if (currentComment && line && !line.match(/^-+$/) && !line.match(/^#{2,}/)) {
+      currentComment.content += line + '\n';
+    }
+    // Section breaks
+    else if (line.match(/^#{2,}/) && currentComment && currentComment.content.trim()) {
+      comments.push(currentComment);
+      currentComment = null;
+      currentFile = null;
+    }
+  }
+  
+  // Push the last comment
+  if (currentComment && currentComment.content.trim()) {
+    comments.push(currentComment);
+  }
+  
+  // If no structured comments found, create general comments for each file
+  if (comments.length === 0) {
+    const fileComments = response.split(/(?=##|\*\*File:)/i);
+    for (const fileComment of fileComments) {
+      const fileMatch = fileComment.match(/##\s*(.+?)(?:\s*\(Line\s*(\d+)\))?/i) || 
+                       fileComment.match(/\*\*File:\s*(.+?)(?:\s*\(Line\s*(\d+)\))?/i);
+      
+      if (fileMatch) {
+        const fileName = fileMatch[1];
+        const lineNum = fileMatch[2] ? parseInt(fileMatch[2]) : null;
+        const content = fileComment.replace(/^##\s*.+?$/im, '').trim();
+        
+        if (content && chunks.some(chunk => chunk.file === fileName)) {
+          comments.push({
+            file: fileName,
+            line: lineNum,
+            content: `🤖 **Copilot Review**\n\n${content}`,
+            type: 'General'
+          });
+        }
+      }
+    }
+  }
+  
+  // Fallback: create one general comment if no file-specific comments found
+  if (comments.length === 0 && response.trim()) {
+    comments.push({
+      file: null,
+      line: null,
+      content: `🤖 **Copilot Review**\n\n${response.substring(0, 2000)}`,
+      type: 'General'
+    });
+  }
+  
+  log(`Parsed ${comments.length} comments from Copilot response`);
+  return comments;
+}
+
+// NEW: Command to post Copilot response to Bitbucket
+async function cmdPostCopilotResponse(context) {
+  const clipboardText = await vscode.env.clipboard.readText();
+  
+  if (!clipboardText.trim()) {
+    vscode.window.showWarningMessage('No text in clipboard. Copy Copilot response first.');
+    return;
+  }
+
+  const action = await vscode.window.showQuickPick([
+    { label: 'Parse and post structured comments', description: 'Extract file-specific comments from response' },
+    { label: 'Post as general PR comment', description: 'Post entire response as one comment' }
+  ], {
+    placeHolder: 'How do you want to post the Copilot response?'
+  });
+
+  if (!action) return;
+
+  if (action.label === 'Parse and post structured comments') {
+    await parseAndPostCopilotResponse(context, clipboardText);
+  } else {
+    // Post as general comment
+    const prContext = context.globalState.get('currentPRContext');
+    if (!prContext) {
+      vscode.window.showWarningMessage('No PR context found. Please use "Send PR Diff to Copilot" first.');
+      return;
+    }
+
+    const { prId, authHeader, workspace, repo } = prContext;
+    const comment = `🤖 **Copilot Review Summary**\n\n${clipboardText.substring(0, 4000)}`;
+    
+    await postGeneralIfNew(workspace, repo, prId, comment, authHeader);
+    vscode.window.showInformationMessage(`✅ Posted Copilot review to PR #${prId}`);
+  }
+}
+
+// Enhanced Auto Copilot Review with direct posting
 async function cmdAutoCopilotReview(context) {
   const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
   if (!prId) return;
 
   const reviewType = await vscode.window.showQuickPick([
-    { label: 'General PR Review', description: 'Get overall feedback on all changes' },
-    { label: 'File-by-File Review', description: 'Get specific feedback for each changed file' },
-    { label: 'Security Review', description: 'Focus on security and potential vulnerabilities' },
-    { label: 'Performance Review', description: 'Focus on performance optimizations' },
-    { label: 'Code Quality Review', description: 'Focus on code style and best practices' }
+    { label: 'Comprehensive Review', description: 'Security, performance, and best practices' },
+    { label: 'Security Focus', description: 'Focus on security vulnerabilities' },
+    { label: 'Performance Focus', description: 'Focus on performance issues' },
+    { label: 'Code Quality', description: 'Focus on code standards and best practices' }
   ], {
-    placeHolder: 'What type of review do you want from Copilot?'
+    placeHolder: 'What type of automated review do you want?'
   });
 
   if (!reviewType) return;
@@ -1077,67 +1363,346 @@ async function cmdAutoCopilotReview(context) {
       return;
     }
 
-    // Create specialized prompts based on review type
+    // Store PR context for later use
+    const prContext = { prId, authHeader, workspace, repo, chunks };
+    context.globalState.update('currentPRContext', prContext);
+
     let promptPrefix = '';
     switch (reviewType.label) {
-      case 'Security Review':
-        promptPrefix = 'Please conduct a security review of these code changes. Look for potential vulnerabilities, security anti-patterns, input validation issues, and suggest security improvements:';
+      case 'Security Focus':
+        promptPrefix = `Conduct a SECURITY-FOCUSED review of this pull request. Look for:
+
+🔒 CRITICAL SECURITY CHECKS:
+- Input validation vulnerabilities
+- Authentication/authorization flaws
+- SQL injection possibilities
+- XSS and injection vulnerabilities
+- Insecure data storage/transmission
+- Security misconfigurations
+
+Please provide specific security recommendations with severity levels (Critical/High/Medium/Low).`;
         break;
-      case 'Performance Review':
-        promptPrefix = 'Please review these code changes for performance optimizations. Identify potential bottlenecks, memory leaks, inefficient algorithms, and suggest performance improvements:';
+      case 'Performance Focus':
+        promptPrefix = `Conduct a PERFORMANCE-FOCUSED review of this pull request. Analyze:
+
+⚡ PERFORMANCE ASPECTS:
+- Algorithm efficiency (time/space complexity)
+- Memory leaks or inefficient resource usage
+- Database query optimization opportunities
+- Caching possibilities
+- Bottlenecks in code execution
+- Asynchronous operation opportunities
+
+Provide specific performance improvement suggestions.`;
         break;
-      case 'File-by-File Review':
-        promptPrefix = 'Please review these code changes file by file. For each file, provide specific feedback on code quality, potential issues, improvements, and best practices:';
-        break;
-      case 'Code Quality Review':
-        promptPrefix = 'Please review these code changes for code quality. Focus on code style, readability, maintainability, SOLID principles, and suggest improvements:';
+      case 'Code Quality':
+        promptPrefix = `Conduct a CODE QUALITY review of this pull request. Focus on:
+
+📋 CODE STANDARDS:
+- Code readability and maintainability
+- Consistency with project patterns
+- Proper error handling
+- Code duplication (DRY principle)
+- Single responsibility principle
+- Proper naming conventions
+- Code documentation
+
+Provide specific code quality improvements.`;
         break;
       default:
-        promptPrefix = 'Please review these code changes from a pull request and provide comprehensive feedback including code quality, potential issues, best practices, and suggestions for improvement:';
+        promptPrefix = `Conduct a COMPREHENSIVE review of this pull request covering:
+
+🔒 Security best practices
+⚡ Performance optimizations
+📋 Code quality and standards
+🎯 Architecture and design patterns
+
+Please provide specific, actionable feedback for each file.`;
     }
 
-    const fullPrompt = `${promptPrefix}\n\n${formatDiffForCopilot(chunks)}\n\nPlease provide specific, actionable feedback:`;
+    const fullPrompt = `${promptPrefix}\n\n${formatDiffForCopilot(chunks)}\n\nStructure your response with clear file-specific recommendations.`;
+
+    // Auto-paste in Copilot chat
+    await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
     
-    await vscode.env.clipboard.writeText(fullPrompt);
-    
-    vscode.window.showInformationMessage(
-      `PR ${reviewType.label.toLowerCase()} prompt copied! Paste in Copilot Chat.`,
-      'Open Copilot Chat',
-      'Show Preview'
-    ).then(async (selection) => {
-      if (selection === 'Open Copilot Chat') {
-        await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-      } else if (selection === 'Show Preview') {
-        const preview = vscode.window.createWebviewPanel(
-          'prDiffPreview',
-          `PR #${prId} Diff Preview`,
-          vscode.ViewColumn.One,
-          { enableScripts: true }
-        );
-        preview.webview.html = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { padding: 20px; font-family: var(--vscode-font-family); }
-              pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
-            </style>
-          </head>
-          <body>
-            <h2>PR #${prId} Diff Preview</h2>
-            <p>This content has been copied to your clipboard. Paste it in Copilot Chat.</p>
-            <pre>${fullPrompt.substring(0, 2000)}${fullPrompt.length > 2000 ? '...' : ''}</pre>
-            <p><em>${fullPrompt.length} characters total</em></p>
-          </body>
-          </html>
-        `;
-      }
-    });
+    setTimeout(async () => {
+      await vscode.env.clipboard.writeText(fullPrompt);
+      await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+      
+      vscode.window.showInformationMessage(
+        `Auto-review prompt pasted in Copilot! After getting response, use "Post Copilot Response".`,
+        'Post Copilot Response',
+        'Show Prompt'
+      ).then((selection) => {
+        if (selection === 'Post Copilot Response') {
+          vscode.commands.executeCommand('bitbucketPRCopilot.postCopilotResponse');
+        }
+      });
+    }, 1000);
 
   } catch (error) {
-    vscode.window.showErrorMessage(`Failed to prepare Copilot review: ${error.message}`);
-    log(`Auto Copilot Review error: ${error.message}`);
+    vscode.window.showErrorMessage(`Failed to prepare automated review: ${error.message}`);
+    log(`Auto review error: ${error.message}`);
   }
+}
+
+// ---------- MISSING DEBUG COMMANDS ----------
+
+// Command: Debug PR Diff (Detailed diff analysis)
+async function cmdDebugPRDiff(context) {
+  try {
+    const { prId, authHeader, workspace, repo } = await ensurePrForCurrentBranch(context);
+    
+    if (!prId) {
+      vscode.window.showWarningMessage('No PR found for current branch');
+      return;
+    }
+
+    vscode.window.showInformationMessage(`🔍 Debugging PR #${prId} Diff...`);
+    
+    // Get raw diff
+    const diffText = await getPRDiff(workspace, repo, prId, authHeader);
+    
+    // Parse and analyze
+    const chunks = parseDiffToChunks(diffText);
+    
+    // Create detailed analysis
+    const analysis = `
+📊 PR DIFF ANALYSIS - PR #${prId}
+
+RAW DIFF:
+• Total characters: ${diffText.length}
+• Total lines: ${diffText.split('\n').length}
+• First 200 chars: ${diffText.substring(0, 200).replace(/\n/g, '\\n')}
+
+PARSING RESULTS:
+• Chunks found: ${chunks.length}
+• Files detected: ${chunks.map(c => `"${c.file}"`).join(', ') || 'None'}
+
+CHUNK DETAILS:
+${chunks.map((chunk, i) => `
+Chunk ${i}:
+  File: "${chunk.file}"
+  Lines: ${chunk.lines.length}
+  Sample: ${chunk.lines.slice(0, 3).map(l => l.substring(0, 50)).join(' | ')}
+`).join('')}
+
+DIFF STRUCTURE:
+${diffText.split('\n').slice(0, 10).map((line, i) => `Line ${i}: ${line}`).join('\n')}
+    `.trim();
+
+    log(analysis);
+    
+    // Show summary to user
+    const summary = `
+PR #${prId} Diff Analysis:
+• Raw diff: ${diffText.length} chars, ${diffText.split('\n').length} lines
+• Files found: ${chunks.length}
+• File names: ${chunks.map(c => c.file).join(', ') || 'None'}
+• Check "BB PR Copilot" output for full analysis
+    `.trim();
+    
+    vscode.window.showInformationMessage(summary, { modal: true })
+      .then(() => {
+        output.show(true);
+      });
+
+  } catch (error) {
+    vscode.window.showErrorMessage(`Diff debug failed: ${error.message}`);
+    log(`Diff debug error: ${error.stack}`);
+  }
+}
+
+// Command: Debug PR
+async function cmdDebugPR(context) {
+  try {
+    const { prId, authHeader, workspace, repo, sourceBranch, baseBranch } = await ensurePrForCurrentBranch(context);
+    
+    if (!prId) {
+      vscode.window.showWarningMessage('No PR found for current branch');
+      return;
+    }
+
+    // Get detailed PR information
+    const pr = await getPRById(workspace, repo, prId, authHeader);
+    
+    // Get and analyze the diff
+    const diffText = await getPRDiff(workspace, repo, prId, authHeader);
+    const chunks = parseDiffToChunks(diffText);
+    
+    const debugInfo = `
+🔍 PR Debug Information:
+
+PR ID: ${prId}
+Title: ${pr.title}
+State: ${pr.state}
+Source: ${sourceBranch} -> Target: ${baseBranch}
+Project: ${workspace}/${repo}
+
+DIFF ANALYSIS:
+• Raw diff length: ${diffText.length} characters
+• Number of files/chunks: ${chunks.length}
+• Files changed: ${chunks.map(c => c.file).join(', ') || 'None'}
+
+PR DETAILS:
+• From Ref: ${pr.fromRef?.displayId} (${pr.fromRef?.id})
+• To Ref: ${pr.toRef?.displayId} (${pr.toRef?.id})
+• Author: ${pr.author?.user?.displayName}
+• Created: ${new Date(pr.createdDate).toLocaleString()}
+• Updated: ${new Date(pr.updatedDate).toLocaleString()}
+
+STATUS: ${pr.state} (Open: ${pr.open}, Closed: ${pr.closed})
+    `.trim();
+
+    log(`Debug PR #${prId}: ${JSON.stringify({
+      id: pr.id,
+      title: pr.title,
+      state: pr.state,
+      fromRef: pr.fromRef?.displayId,
+      toRef: pr.toRef?.displayId,
+      diffLength: diffText.length,
+      chunksFound: chunks.length,
+      files: chunks.map(c => c.file)
+    })}`);
+
+    // Show first few lines of diff for debugging
+    if (diffText.length > 0) {
+      log(`First 300 chars of diff:\n${diffText.substring(0, 300)}`);
+    }
+
+    vscode.window.showInformationMessage(debugInfo, { modal: true });
+    
+  } catch (error) {
+    vscode.window.showErrorMessage(`Debug PR failed: ${error.message}`);
+    log(`Debug PR error: ${error.stack}`);
+  }
+}
+
+// Command: Super Debug (comprehensive debugging)
+async function cmdSuperDebug(context) {
+  try {
+    vscode.window.showInformationMessage('🚀 Starting Super Debug...');
+    
+    // 1. Git status
+    const status = await git.status();
+    log(`Git Status: ${JSON.stringify({
+      current: status.current,
+      tracking: status.tracking,
+      files: status.files?.length || 0
+    })}`);
+
+    // 2. Configuration
+    const cfg = vscode.workspace.getConfiguration('bitbucketPRCopilot');
+    const config = {
+      workspace: cfg.get('workspace'),
+      repo: cfg.get('repo'),
+      baseBranch: cfg.get('baseBranch'),
+      mergeBranch: cfg.get('mergeBranch')
+    };
+    log(`Configuration: ${JSON.stringify(config)}`);
+
+    // 3. Auth test
+    let authStatus = 'Not tested';
+    try {
+      const authHeader = await getAuthHeader(context);
+      authStatus = 'OK';
+    } catch (e) {
+      authStatus = `Failed: ${e.message}`;
+    }
+
+    // 4. PR detection
+    let prStatus = 'Not tested';
+    try {
+      const { prId } = await ensurePrForCurrentBranch(context);
+      prStatus = prId ? `Found PR #${prId}` : 'No PR found';
+    } catch (e) {
+      prStatus = `Failed: ${e.message}`;
+    }
+
+    const superDebugInfo = `
+🚀 SUPER DEBUG REPORT
+
+GIT:
+• Current Branch: ${status.current}
+• Tracking: ${status.tracking || 'None'}
+• Modified Files: ${status.files?.length || 0}
+
+CONFIGURATION:
+• Project: ${config.workspace}
+• Repository: ${config.repo}
+• Target Branch: ${config.baseBranch}
+• Source Branch: ${config.mergeBranch || 'Current'}
+
+AUTHENTICATION: ${authStatus}
+
+PR DETECTION: ${prStatus}
+
+EXTENSION:
+• Workspace: ${vscode.workspace.name || 'None'}
+• Root: ${repoPath}
+• Git Initialized: ${!!git}
+    `.trim();
+
+    // Create a detailed output in the log
+    log('=== SUPER DEBUG COMPLETE ===');
+    log(superDebugInfo);
+
+    // Show summary to user
+    vscode.window.showInformationMessage(superDebugInfo, { modal: true })
+      .then(() => {
+        output.show(true);
+      });
+
+  } catch (error) {
+    vscode.window.showErrorMessage(`Super Debug failed: ${error.message}`);
+    log(`Super Debug error: ${error.stack}`);
+  }
+}
+
+// Command: List all available commands
+async function cmdListCommands() {
+  const commands = [
+    '🔧 Configuration:',
+    '• bitbucketPRCopilot.configureSettings - Configure project/repo/branches',
+    '• bitbucketPRCopilot.showCurrentConfig - Show current configuration',
+    '• bitbucketPRCopilot.cleanAllSettings - Reset all settings to defaults',
+    '',
+    '📝 PR Commenting:',
+    '• bitbucketPRCopilot.quickPost - Quick post for active file',
+    '• bitbucketPRCopilot.batchPost - Batch post for all open files',
+    '• bitbucketPRCopilot.sendDiffToCopilot - Send PR diff to Copilot Chat',
+    '• bitbucketPRCopilot.autoCopilotReview - Auto Copilot review with different types',
+    '',
+    '🐛 Debugging:',
+    '• bitbucketPRCopilot.debugPR - Debug current PR',
+    '• bitbucketPRCopilot.superDebug - Comprehensive debug report',
+    '• bitbucketPRCopilot.listCommands - This command list',
+    '• bitbucketPRCopilot.testGit - Test Git integration',
+    '• bitbucketPRCopilot.showLog - Show extension log',
+    '',
+    '🔐 Authentication:',
+    '• bitbucketPRCopilot.clearApiToken - Clear stored credentials'
+  ].join('\n');
+
+  const quickActions = await vscode.window.showQuickPick([
+    { label: '$(gear) Configure Settings', description: 'Set up project/repo/branches', command: 'configureSettings' },
+    { label: '$(rocket) Quick Post', description: 'Post comment for current file', command: 'quickPost' },
+    { label: '$(copilot) Send to Copilot', description: 'Send PR diff to Copilot Chat', command: 'sendDiffToCopilot' },
+    { label: '$(bug) Debug PR', description: 'Debug current PR', command: 'debugPR' },
+    { label: '$(output) Show Log', description: 'Open extension output', command: 'showLog' }
+  ], {
+    placeHolder: 'Choose a command to run, or close to see full list...'
+  });
+
+  if (quickActions) {
+    // Execute the selected command
+    await vscode.commands.executeCommand(`bitbucketPRCopilot.${quickActions.command}`);
+  } else {
+    // Show full command list
+    vscode.window.showInformationMessage(commands, { modal: true });
+  }
+
+  log('Command list displayed');
 }
 
 // ---------- ACTIVATE ----------
@@ -1184,24 +1749,29 @@ function activate(context) {
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.quickPost', () => cmdQuickPost(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.batchPost', () => cmdPostBatchForOpenFiles(context)));
       
-      // NEW: Configuration management commands
+      // Configuration management commands
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.configureSettings', () => cmdConfigureSettings()));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.cleanAllSettings', () => cmdCleanAllSettings()));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.showCurrentConfig', () => cmdShowCurrentConfig()));
 
-      // NEW: Copilot Chat integration commands
+      // Copilot Chat integration commands
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.sendDiffToCopilot', () => cmdSendDiffToCopilotChat(context)));
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.autoCopilotReview', () => cmdAutoCopilotReview(context)));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.postCopilotResponse', () => cmdPostCopilotResponse(context)));
+
+      // 🆕 ADD THE MISSING DEBUG COMMANDS HERE:
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.debugPR', () => cmdDebugPR(context)));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.superDebug', () => cmdSuperDebug(context)));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.listCommands', () => cmdListCommands()));
+      context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.debugPRDiff', () => cmdDebugPRDiff(context)));
 
       context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.clearApiToken', async () => {
         await context.secrets.delete(SECRET_KEY);
         vscode.window.showInformationMessage('Bitbucket credentials cleared.');
         log('Cleared Bitbucket credentials.');
       }));
-      // Register the debug command in activate function:
-context.subscriptions.push(vscode.commands.registerCommand('bitbucketPRCopilot.debugPRDiff', () => cmdDebugPRDiff(context)));
 
-      log('Commands registered.');
+      log('All commands registered successfully.');
     } catch (e) {
       vscode.window.showErrorMessage(`Activation failed: ${e.message}`);
       log(`Activation failed: ${e.stack || e.message}`);
