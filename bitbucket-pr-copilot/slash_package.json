@@ -1,0 +1,392 @@
+{
+  "name": "bitbucket-pr-copilot",
+  "displayName": "Bitbucket PR Copilot PoC",
+  "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
+  "version": "0.11.0",
+  "publisher": "kk",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:bitbucketPRCopilot.quickPost",
+    "onCommand:bitbucketPRCopilot.batchPost",
+    "onCommand:bitbucketPRCopilot.testGit",
+    "onCommand:bitbucketPRCopilot.clearApiToken",
+    "onCommand:bitbucketPRCopilot.showLog",
+    "onCommand:bitbucketPRCopilot.configureSettings",
+    "onCommand:bitbucketPRCopilot.cleanAllSettings",
+    "onCommand:bitbucketPRCopilot.showCurrentConfig",
+    "onCommand:bitbucketPRCopilot.sendDiffToCopilot",
+    "onCommand:bitbucketPRCopilot.autoCopilotReview",
+    "onCommand:bitbucketPRCopilot.reviewAgainstJiraStory",
+    "onCommand:bitbucketPRCopilot.debugPR",
+    "onCommand:bitbucketPRCopilot.superDebug",
+    "onCommand:bitbucketPRCopilot.listCommands",
+    "onCommand:bitbucketPRCopilot.debugPRDiff",
+    "onCommand:bitbucketPRCopilot.postGeneralForCurrentFile",
+    "onCommand:bitbucketPRCopilot.postInlineAtSelection",
+    "onCommand:bitbucketPRCopilot.postInlineAtLine",
+    "onCommand:bitbucketPRCopilot.postCopilotResponse"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "bitbucketPRCopilot.quickPost",
+        "title": "Bitbucket PR Copilot: Quick Post (Active File)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.batchPost",
+        "title": "Bitbucket PR Copilot: Batch Post (All Open Files)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.testGit",
+        "title": "Bitbucket PR Copilot: Test Git",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.clearApiToken",
+        "title": "Bitbucket PR Copilot: Clear Bitbucket API Token",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.showLog",
+        "title": "Bitbucket PR Copilot: Show Log",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.configureSettings",
+        "title": "Bitbucket PR Copilot: Configure Settings (Project/Repo/Branches)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.cleanAllSettings",
+        "title": "Bitbucket PR Copilot: Clean All Settings (Reset to Defaults)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.showCurrentConfig",
+        "title": "Bitbucket PR Copilot: Show Current Configuration",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.sendDiffToCopilot",
+        "title": "Bitbucket PR Copilot: Send PR Diff to Copilot Chat",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.autoCopilotReview",
+        "title": "Bitbucket PR Copilot: Auto Copilot Review",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.reviewAgainstJiraStory",
+        "title": "Bitbucket PR Copilot: Review Against Jira Story",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.debugPR",
+        "title": "Bitbucket PR Copilot: Debug PR",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.superDebug",
+        "title": "Bitbucket PR Copilot: Super Debug",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.listCommands",
+        "title": "Bitbucket PR Copilot: List Commands",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.debugPRDiff",
+        "title": "Bitbucket PR Copilot: Debug PR Diff",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.postGeneralForCurrentFile",
+        "title": "Bitbucket PR Copilot: Post General Comment (Current File)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.postInlineAtSelection",
+        "title": "Bitbucket PR Copilot: Post Inline Comment (Selection)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.postInlineAtLine",
+        "title": "Bitbucket PR Copilot: Post Inline Comment (Line Number)",
+        "category": "Bitbucket PR Copilot"
+      },
+      {
+        "command": "bitbucketPRCopilot.postCopilotResponse",
+        "title": "Bitbucket PR Copilot: Post Copilot Response to Bitbucket",
+        "category": "Bitbucket PR Copilot"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Bitbucket PR Copilot Settings",
+      "properties": {
+        "bitbucketPRCopilot.workspace": {
+          "type": "string",
+          "default": "AOLDF",
+          "description": "Bitbucket project/workspace name"
+        },
+        "bitbucketPRCopilot.repo": {
+          "type": "string",
+          "default": "uipoc",
+          "description": "Bitbucket repository name"
+        },
+        "bitbucketPRCopilot.baseBranch": {
+          "type": "string",
+          "default": "develop",
+          "description": "Target branch for PRs (where PR will be merged TO)"
+        },
+        "bitbucketPRCopilot.mergeBranch": {
+          "type": "string",
+          "default": "",
+          "description": "Source branch for PRs (where PR will be merged FROM - leave empty for current branch)"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "bitbucketPRCopilot.quickPost",
+          "group": "navigation@9",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.batchPost",
+          "group": "navigation@9",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.sendDiffToCopilot",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.autoCopilotReview",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.reviewAgainstJiraStory",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.postCopilotResponse",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.configureSettings",
+          "group": "navigation@10"
+        },
+        {
+          "command": "bitbucketPRCopilot.showCurrentConfig",
+          "group": "navigation@10"
+        },
+        {
+          "command": "bitbucketPRCopilot.debugPR",
+          "group": "navigation@7"
+        },
+        {
+          "command": "bitbucketPRCopilot.debugPRDiff",
+          "group": "navigation@7"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "bitbucketPRCopilot.quickPost",
+          "group": "navigation@9",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.sendDiffToCopilot",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        },
+        {
+          "command": "bitbucketPRCopilot.reviewAgainstJiraStory",
+          "group": "navigation@8",
+          "when": "resourceExtname =~ /\\.(js|jsx|ts|tsx|py|java|kt|go|rb|php|cs|cpp|c|h|hpp|json|yaml|yml)$/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "bitbucketPRCopilot.quickPost",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.batchPost",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.configureSettings",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.cleanAllSettings",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.showCurrentConfig",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.sendDiffToCopilot",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.autoCopilotReview",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.reviewAgainstJiraStory",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.postCopilotResponse",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.debugPR",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.superDebug",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.listCommands",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.debugPRDiff",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.postGeneralForCurrentFile",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.postInlineAtSelection",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.postInlineAtLine",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.testGit",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.clearApiToken",
+          "when": "true"
+        },
+        {
+          "command": "bitbucketPRCopilot.showLog",
+          "when": "true"
+        }
+      ]
+    },
+
+    "chatParticipants": [
+      {
+        "id": "bitbucketPRCopilot.chat",
+        "name": "bbpr",
+        "fullName": "Bitbucket PR Copilot",
+        "description": "Bitbucket PR Copilot chat participant. Use /reviewPR, /postComments, /jiraReview, /debugPR, /configure.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "reviewPR",
+            "description": "Send current Bitbucket PR diff to Copilot for review"
+          },
+          {
+            "name": "postComments",
+            "description": "Post Copilot review back to Bitbucket PR as comments"
+          },
+          {
+            "name": "jiraReview",
+            "description": "Review PR against Jira acceptance criteria"
+          },
+          {
+            "name": "debugPR",
+            "description": "Debug current PR and show diagnostics"
+          },
+          {
+            "name": "configure",
+            "description": "Open Bitbucket PR Copilot settings"
+          }
+        ]
+      }
+    ],
+
+    "keybindings": [
+      {
+        "command": "bitbucketPRCopilot.quickPost",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "bitbucketPRCopilot.batchPost",
+        "key": "ctrl+alt+b",
+        "mac": "cmd+alt+b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "bitbucketPRCopilot.sendDiffToCopilot",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "bitbucketPRCopilot.postCopilotResponse",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "bitbucket",
+    "pull-requests",
+    "copilot",
+    "code-review",
+    "configuration",
+    "ai",
+    "git",
+    "pr",
+    "comments",
+    "jira",
+    "acceptance-criteria",
+    "requirements"
+  ],
+  "scripts": {
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "simple-git": "^3.19.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://scm.horizon.dif.bankofamerica.com/rest/api/latest/projects/AOLDF/repos/uipoc"
+  }
+}
