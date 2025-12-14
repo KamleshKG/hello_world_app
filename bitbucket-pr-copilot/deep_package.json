@@ -1,8 +1,8 @@
 {
   "name": "bitbucket-pr-copilot",
-  "displayName": "Bitbucket PR Copilot PoC",
-  "description": "Post Copilot/chat review suggestions to Bitbucket PRs (quick or batch)",
-  "version": "0.11.0",
+  "displayName": "Bitbucket PR Copilot",
+  "description": "Post Copilot/chat review suggestions to Bitbucket PRs (only specific suggestions, no file dumps)",
+  "version": "0.12.0",
   "publisher": "kk",
   "engines": {
     "vscode": "^1.80.0"
@@ -24,7 +24,6 @@
     "onCommand:bitbucketPRCopilot.debugPR",
     "onCommand:bitbucketPRCopilot.superDebug",
     "onCommand:bitbucketPRCopilot.listCommands",
-    "onCommand:bitbucketPRCopilot.debugPRDiff",
     "onCommand:bitbucketPRCopilot.postGeneralForCurrentFile",
     "onCommand:bitbucketPRCopilot.postInlineAtSelection",
     "onCommand:bitbucketPRCopilot.postInlineAtLine",
@@ -100,11 +99,6 @@
       {
         "command": "bitbucketPRCopilot.listCommands",
         "title": "Bitbucket PR Copilot: List Commands",
-        "category": "Bitbucket PR Copilot"
-      },
-      {
-        "command": "bitbucketPRCopilot.debugPRDiff",
-        "title": "Bitbucket PR Copilot: Debug PR Diff",
         "category": "Bitbucket PR Copilot"
       },
       {
@@ -197,12 +191,7 @@
         {
           "command": "bitbucketPRCopilot.debugPR",
           "group": "navigation@7"
-        },
-        {
-          "command": "bitbucketPRCopilot.debugPRDiff",
-          "group": "navigation@7"
         }
-        
       ],
       "editor/title": [
         {
@@ -271,10 +260,6 @@
           "when": "true"
         },
         {
-          "command": "bitbucketPRCopilot.debugPRDiff",
-          "when": "true"
-        },
-        {
           "command": "bitbucketPRCopilot.postGeneralForCurrentFile",
           "when": "true"
         },
@@ -300,6 +285,37 @@
         }
       ]
     },
+    "chatParticipants": [
+      {
+        "id": "bitbucketPRCopilot.chat",
+        "name": "bbpr",
+        "fullName": "Bitbucket PR Copilot",
+        "description": "Bitbucket PR Copilot chat participant. Use /reviewPR, /postComments, /jiraReview, /debugPR, /configure.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "reviewPR",
+            "description": "Send current Bitbucket PR diff to Copilot for review"
+          },
+          {
+            "name": "postComments",
+            "description": "Post Copilot review back to Bitbucket PR as comments"
+          },
+          {
+            "name": "jiraReview",
+            "description": "Review PR against Jira acceptance criteria"
+          },
+          {
+            "name": "debugPR",
+            "description": "Debug current PR and show diagnostics"
+          },
+          {
+            "name": "configure",
+            "description": "Open Bitbucket PR Copilot settings"
+          }
+        ]
+      }
+    ],
     "keybindings": [
       {
         "command": "bitbucketPRCopilot.quickPost",
