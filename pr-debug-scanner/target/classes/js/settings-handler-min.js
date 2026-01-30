@@ -1,0 +1,1 @@
+(function(a){a(document).on("change","#debug-enabled-select",function(){const b=a(this).val(),c=window.bitbucket.repository.id;a.ajax({url:AJS.contextPath()+"/rest/scan-settings/1.0/settings/repo/"+c,type:"POST",contentType:"application/json",data:JSON.stringify({enabled:b}),success:function(){AJS.flag({type:"success",title:"Saved!",body:"Settings updated."})}})})})(AJS.$);

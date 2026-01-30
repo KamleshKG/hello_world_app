@@ -1,0 +1,28 @@
+<atlassian-plugin key="com.example.debug-scan" name="PR Debug Scanner" plugins-version="2">
+    <plugin-info>
+        <description>Vetoes PRs if web.config has debug=true</description>
+        <version>1.0.0</version>
+        <vendor name="Example Corp" url="http://example.com" />
+    </plugin-info>
+
+    <repository-merge-check key="debug-check" class="com.example.hooks.DebugMergeCheck" name="PR Scan Check">
+        <description>Prevents merging debug code to main branches.</description>
+        <icon>icons/logo.png</icon>
+    </repository-merge-check>
+
+    <rest key="settings-rest" path="/scan-settings" version="1.0">
+        <package>com.example.rest</package>
+    </rest>
+
+    <web-resource key="debug-scan-resources" name="Debug Scan Resources">
+        <dependency>com.atlassian.auiplugin:ajs</dependency>
+        <resource type="download" name="settings-handler.js" location="/js/settings-handler.js"/>
+        <context>bitbucket.page.repository.settings</context>
+    </web-resource>
+
+    <repository-settings-panel key="debug-repo-settings" name="Debug Scan Policy" 
+                               location="bitbucket.repository.settings.panel/general-section">
+        <view>com.example.templates.repoSettings</view>
+    </repository-settings-panel>
+
+</atlassian-plugin>
