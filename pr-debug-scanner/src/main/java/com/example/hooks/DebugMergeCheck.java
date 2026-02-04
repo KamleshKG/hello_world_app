@@ -1,28 +1,36 @@
 package com.example.hooks;
 
+import com.atlassian.bitbucket.content.ContentService;
 import com.atlassian.bitbucket.hook.repository.*;
-import com.atlassian.bitbucket.content.*;
-import com.atlassian.bitbucket.repository.Repository;
 import com.atlassian.bitbucket.pull.PullRequest;
-import com.atlassian.bitbucket.util.InputSupplier;
+import com.atlassian.bitbucket.repository.Repository;
+import com.atlassian.plugin.spring.scanner.annotation.imports.ComponentImport;
 import com.example.service.SettingsService;
-import javax.annotation.Nonnull;
-import java.io.*;
+import jakarta.annotation.Nonnull;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 
+@Named
 public class DebugMergeCheck implements RepositoryMergeCheck {
     private final ContentService contentService;
     private final SettingsService settingsService;
 
-    public DebugMergeCheck(ContentService contentService, SettingsService settingsService) {
+    @Inject // Added
+    public DebugMergeCheck(@ComponentImport ContentService contentService,
+                           SettingsService settingsService) {
+        this.contentService = contentService;
+        this.settingsService = settingsService;
+    }
         this.contentService = contentService;
         this.settingsService = settingsService;
     }
 
     @Nonnull
     @Override
-    public RepositoryHookResult preUpdate(@Nonnull PreRepositoryHookContext context, 
+    public RepositoryHookResult preUpdate(@Nonnull PreRepositoryHookContext context,
                                           @Nonnull PullRequestMergeHookRequest request) {
-        
         PullRequest pr = request.getPullRequest();
         Repository repo = pr.getToRef().getRepository();
 
@@ -31,23 +39,12 @@ public class DebugMergeCheck implements RepositoryMergeCheck {
         }
 
         try {
-            // Fix: Removing <InputStream> to resolve "does not take parameters" error
-            InputSupplier supplier = contentService.getContent(repo, pr.getToRef().getLatestCommit(), "web.config");
-            
-            try (InputStream is = (InputStream) supplier.openStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-                
-                if (reader.lines().anyMatch(line -> line.contains("debug=\"true\""))) {
-                    return RepositoryHookResult.rejected(
-                        "Security Policy Failure", 
-                        "Merge blocked: debug=\"true\" detected in web.config."
-                    );
-                }
+            ByteArrayOutputStream captured = new ByteArrayOutputStream();
+            contentService.streamFile(repo, pr.getToRef().getLatestCommit(), "web.config", (ignored) -> captured);
+            if (captured.toString(StandardCharsets.UTF_8).contains("debug=\"true\"")) {
+                return RepositoryHookResult.rejected("Security Policy Failure", "Merge blocked: debug=\"true\" detected.");
             }
-        } catch (Exception e) {
-            // File not found or error accessing; allow the merge
-        }
-
+        } catch (Exception ignored) {}
         return RepositoryHookResult.accepted();
     }
 }

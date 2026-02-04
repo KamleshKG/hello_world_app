@@ -1,0 +1,30 @@
+<repository lastmodified='20260202113334.646'>
+  <resource id='com.example.bitbucket.pr-debug-scanner/1.0.0.SNAPSHOT' symbolicname='com.example.bitbucket.pr-debug-scanner' presentationname='PR Merge Code Scan Plugin' uri='pr-debug-scanner-1.0.0-SNAPSHOT.jar' version='1.0.0.SNAPSHOT'>
+    <description>Vetoes PRs containing debug=true in web.config</description>
+    <size>12640</size>
+    <documentation>http://www.example.com/</documentation>
+    <capability name='bundle'>
+      <p n='symbolicname' v='com.example.bitbucket.pr-debug-scanner'/>
+      <p n='presentationname' v='PR Merge Code Scan Plugin'/>
+      <p n='version' t='version' v='1.0.0.SNAPSHOT'/>
+      <p n='manifestversion' v='2'/>
+    </capability>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.content))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.content;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.hook.repository))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.hook.repository;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.io))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.io;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.project))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.project;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.pull))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.pull;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.bitbucket.repository))' extend='false' multiple='false' optional='true'>Import package com.atlassian.bitbucket.repository;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.plugin.spring.scanner.annotation.imports))' extend='false' multiple='false' optional='true'>Import package com.atlassian.plugin.spring.scanner.annotation.imports;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=com.atlassian.sal.api.pluginsettings))' extend='false' multiple='false' optional='true'>Import package com.atlassian.sal.api.pluginsettings;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=jakarta.annotation))' extend='false' multiple='false' optional='true'>Import package jakarta.annotation;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=jakarta.inject))' extend='false' multiple='false' optional='true'>Import package jakarta.inject;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=jakarta.ws.rs))' extend='false' multiple='false' optional='true'>Import package jakarta.ws.rs;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=jakarta.ws.rs.core))' extend='false' multiple='false' optional='true'>Import package jakarta.ws.rs.core;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=java.io))' extend='false' multiple='false' optional='true'>Import package java.io;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=java.lang))' extend='false' multiple='false' optional='true'>Import package java.lang;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=java.lang.invoke))' extend='false' multiple='false' optional='true'>Import package java.lang.invoke;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=java.nio.charset))' extend='false' multiple='false' optional='true'>Import package java.nio.charset;resolution:=optional</require>
+    <require name='package' filter='(&amp;(package=java.util))' extend='false' multiple='false' optional='true'>Import package java.util;resolution:=optional</require>
+  </resource>
+</repository>

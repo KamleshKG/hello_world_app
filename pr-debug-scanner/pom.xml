@@ -7,23 +7,32 @@
     <groupId>com.example.bitbucket</groupId>
     <artifactId>pr-debug-scanner</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-
-    <organization>
-        <name>Example Corp</name>
-        <url>http://www.example.com/</url>
-    </organization>
-
-    <name>PR Merge Code Scan Plugin</name>
-    <description>Vetoes PRs containing debug=true in web.config</description>
     <packaging>atlassian-plugin</packaging>
 
     <properties>
-        <bitbucket.version>8.19.0</bitbucket.version>
-        <bitbucket.data.version>${bitbucket.version}</bitbucket.data.version>
+        <bitbucket.version>9.4.16</bitbucket.version>
         <amps.version>8.12.0</amps.version>
-        <atlassian.spring.scanner.version>2.1.7</atlassian.spring.scanner.version>
+        <atlassian.spring.scanner.version>2.2.4</atlassian.spring.scanner.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
+
+    <repositories>
+        <repository>
+            <id>atlassian-public</id>
+            <url>https://packages.atlassian.com/maven-public/</url>
+            <snapshots><enabled>true</enabled></snapshots>
+            <releases><enabled>true</enabled></releases>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>atlassian-public</id>
+            <url>https://packages.atlassian.com/maven-public/</url>
+            <releases><enabled>true</enabled></releases>
+        </pluginRepository>
+    </pluginRepositories>
 
     <dependencies>
         <dependency>
@@ -33,43 +42,58 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>com.atlassian.bitbucket.server</groupId>
-            <artifactId>bitbucket-spi</artifactId>
-            <version>${bitbucket.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
             <groupId>com.atlassian.sal</groupId>
             <artifactId>sal-api</artifactId>
-            <version>4.0.0</version>
+            <version>5.2.3</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>javax.ws.rs</groupId>
-            <artifactId>jsr311-api</artifactId>
-            <version>1.1.1</version>
+            <groupId>jakarta.inject</groupId>
+            <artifactId>jakarta.inject-api</artifactId>
+            <version>2.0.1</version>
             <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>jakarta.ws.rs</groupId>
+            <artifactId>jakarta.ws.rs-api</artifactId>
+            <version>3.1.0</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>com.atlassian.plugin</groupId>
             <artifactId>atlassian-spring-scanner-annotation</artifactId>
             <version>${atlassian.spring.scanner.version}</version>
             <scope>provided</scope>
         </dependency>
-
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13.2</version>
-            <scope>test</scope>
+            <groupId>com.atlassian.plugin</groupId>
+            <artifactId>atlassian-spring-scanner-runtime</artifactId>
+            <version>${atlassian.spring.scanner.version}</version>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
-            <version>4.8.0</version>
-            <scope>test</scope>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>6.1.12</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-beans</artifactId>
+            <version>6.1.12</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.atlassian.soy</groupId>
+            <artifactId>atlassian-soy-template-renderer-api</artifactId>
+            <version>9.0.4</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.36</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -81,16 +105,17 @@
                 <version>${amps.version}</version>
                 <extensions>true</extensions>
                 <configuration>
-                    <products>
-                        <product>
-                            <id>bitbucket</id>
-                            <version>${bitbucket.version}</version>
-                            <dataVersion>${bitbucket.data.version}</dataVersion>
-                        </product>
-                    </products>
-                    <enableQuickReload>true</enableQuickReload>
                     <instructions>
-                        <Atlassian-Scan-Attributes>atlassian-spring-scanner-1.0</Atlassian-Scan-Attributes>
+                        <Atlassian-Plugin-Key>${project.groupId}.${project.artifactId}</Atlassian-Plugin-Key>
+                        <Import-Package>
+                            jakarta.inject*,
+                            jakarta.ws.rs*,
+                            org.springframework.beans.factory.annotation,
+                            com.atlassian.bitbucket*,
+                            com.atlassian.sal*,
+                            *
+                        </Import-Package>
+                        <Spring-Context>*</Spring-Context>
                     </instructions>
                 </configuration>
             </plugin>
@@ -107,21 +132,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <repositories>
-        <repository>
-            <id>atlassian-public</id>
-            <url>https://packages.atlassian.com/maven-public/</url>
-            <snapshots><enabled>true</enabled></snapshots>
-            <releases><enabled>true</enabled></releases>
-        </repository>
-    </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>atlassian-public</id>
-            <url>https://packages.atlassian.com/maven-public/</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </pluginRepository>
-    </pluginRepositories>
 </project>

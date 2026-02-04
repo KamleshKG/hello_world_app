@@ -1,0 +1,19 @@
+<atlassian-plugin key="${project.groupId}.${project.artifactId}" name="${project.name}" plugins-version="2">
+    <plugin-info>
+        <description>${project.description}</description>
+        <version>${project.version}</version>
+        <vendor name="BAML" url="http://www.baml.com/" />
+        <atlassian-license-enabled>true</atlassian-license-enabled>
+    </plugin-info>
+
+    <repository-merge-check key="pr-security-scanner-check"
+                            name="PR Security Scanner"
+                            class="com.baml.prplugin.hook.MyMergeCheckHook">
+        <description>Blocks merges if debug="true" is found in web.config files.</description>
+        <icon>images/pluginIcon.png</icon>
+        <scopes>
+            <scope>repository</scope>
+        </scopes>
+    </repository-merge-check>
+
+</atlassian-plugin>

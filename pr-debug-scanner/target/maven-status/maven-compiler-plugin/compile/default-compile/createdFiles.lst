@@ -1,0 +1,4 @@
+com\example\service\SettingsService.class
+com\example\rest\SettingsResource.class
+com\example\web\RepoSettingsContextProvider.class
+com\example\hooks\DebugMergeCheck.class

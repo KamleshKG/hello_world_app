@@ -5,12 +5,14 @@
  */
 {template .repoSettings}
     <html>
-    <head><meta name="decorator" content="bitbucket.repository.settings"></head>
+    <head>
+        <meta name="decorator" content="bitbucket.repository.settings">
+    </head>
     <body>
         <h3>PR Scan Configuration</h3>
         <form class="aui">
             <div class="field-group">
-                <label for="debug-enabled">Debug Scan Policy</label>
+                <label for="debug-enabled-select">Debug Scan Policy</label>
                 <select class="select" id="debug-enabled-select">
                     <option value="INHERIT" {if $enabled == 'INHERIT'}selected{/if}>Inherit</option>
                     <option value="true" {if $enabled == 'true'}selected{/if}>On (Veto Enabled)</option>
