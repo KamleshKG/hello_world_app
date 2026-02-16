@@ -1,0 +1,90 @@
+{
+  "name": "existing-pr-copilot",
+  "displayName": "Bitbucket PR Copilot - Simple & Working",
+  "description": "Simple Bitbucket PR integration with AI reviews - Just 4 commands that work",
+  "version": "2.0.0",
+  "publisher": "kk",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+
+  "contributes": {
+    "commands": [
+      {
+        "command": "bitbucketPR.easySetup",
+        "title": "PR Copilot: Easy Setup",
+        "category": "PR Copilot"
+      },
+      {
+        "command": "bitbucketPR.showStatus",
+        "title": "PR Copilot: Show Status (Connection + PR)",
+        "category": "PR Copilot"
+      },
+      {
+        "command": "bitbucketPR.checkConfig",
+        "title": "PR Copilot: Check Configuration",
+        "category": "PR Copilot"
+      },
+      {
+        "command": "bitbucketPR.reviewAndPost",
+        "title": "PR Copilot: Review & Post to PR",
+        "category": "PR Copilot"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Bitbucket PR Copilot",
+      "properties": {
+        "bitbucketPR.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Bitbucket Server URL (e.g., http://172.16.16.105:7990)"
+        },
+        "bitbucketPR.project": {
+          "type": "string",
+          "default": "",
+          "description": "Project key (e.g., DEM)"
+        },
+        "bitbucketPR.repo": {
+          "type": "string",
+          "default": "",
+          "description": "Repository name (e.g., demorepo)"
+        },
+        "bitbucketPR.baseBranch": {
+          "type": "string",
+          "default": "master",
+          "description": "Default base branch (e.g., master or main)"
+        },
+        "bitbucketPR.sourceBranch": { 
+          "type": "string", 
+          "default": "",
+          "description": "Your current working branch (e.g. feature/abc)" 
+        },
+        "bitbucketPR.jiraUrl": {
+          "type": "string",
+          "default": "",
+          "description": "JIRA instance URL (e.g., https://jira.company.com)"
+        }
+      }
+    }
+  },
+
+  "categories": ["Other"],
+  "keywords": ["bitbucket", "pr", "code-review", "simple"],
+
+  "scripts": {
+    "package": "vsce package"
+  },
+
+  "dependencies": {
+    "simple-git": "^3.19.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+
+  "license": "MIT"
+}
