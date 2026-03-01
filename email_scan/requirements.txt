@@ -1,0 +1,19 @@
+# Core
+pywin32>=306
+pandas>=2.0
+streamlit>=1.35
+plotly>=5.20
+matplotlib>=3.8
+Pillow>=10.0
+
+# spaCy
+spacy>=3.7
+
+# Offline NLP summarization (NO API required)
+sumy>=0.11.0
+nltk>=3.8
+scikit-learn>=1.3
+
+# Optional but recommended
+wordcloud>=1.9
+textstat>=0.7
