@@ -1,0 +1,215 @@
+============================================================
+TRANSCRIPT
+============================================================
+
+Welcome to the deep dive. Today we're plunging into a really fascinating blueprint. It's for a DevOps ecosystem that's already running at just a massive scale. Massive is right. We're talking over 10,000 builds every single day. Wow. And it's got, what, a seven or eight year history behind it? So a lot of data. A ton of data. Yeah. And what's really interesting here, I think, is that it's not just about keeping the lights on, you know, managing operations day to day. It's about this big strategic pivot they're making. A pivot how? Well, they're shifting from being sort of reactive and focused on the tools themselves to being much more proactive, data driven, really trying to turn all that technical muscle into, like, direct business value. It's a whole mindset change. OK. And you mentioned the data. The secret weapon here seems to be this eyesight database they have. Exactly. That's the key. It's meticulously captured all the CI-CD data for years. Logs, tests, deployments. For every single one of those 10,000 daily builds. Every single one. It's an incredible asset. So our mission today, really, is to dig into how they're taking this mountain of historical data and turning it into, well, predictive intelligence. All right. Let's unpack that. They've got the data. How are they actually shifting their approach? What are the big goals they're aiming for? So they've basically laid out four foundational goals. It's about speeding up time to market, number one. Make big sense. Then enhancing operational stability, keeping things running smoothly. Also, proactively managing security and compliance, which is huge. And finally, fostering better cross-functional excellence. Getting teams to work together better. OK. But how does the eyesight data actually help with those? Especially the prediction part you mentioned. Right. That's the exciting bit. Think about it. 10,000 bills a day. Even tiny recurring problems become huge bottlenecks. Oh, definitely. Slows everything down. Exactly. So the vision is to use machine learning on that eyesight data, not just to figure out why something failed after the fact, but to actually predict failures before they happen. Maybe even intelligently pick which tests are most relevant to run for a specific change. So like predicting build failures or even selecting tests. Yeah. Think like Netflix predicting server issues or Spotify optimizing which tests to run. It's applying that predictive power to the whole development pipeline. Moving from oops, broken again to we saw that coming. That sounds incredibly powerful. But OK, scale again. 10,000 bills. How do they even measure if this whole transformation is working? What's the yardstick? Good question. They're adopting the DORA framework. DevOps Research and Assessment. Ah, DORA. Heard of it? Yeah. Gives them that common language. For velocity, you've got metrics like deployment frequency, lead time for changes. Right. How fast are we going? Exactly. And then for stability, you look at change failure rate and mean time to restore. How often do changes break things and how fast can we fix it? But what's really cool here is that the granularity from eyesight lets them go deeper than just the raw DORA numbers. They can see bottlenecks not just in a metric, but maybe in the handoff between two teams. Finding those hidden friction points. Precisely. It adds another layer. OK, DORA covers velocity and stability. But you also mentioned security as a pillar. How do they measure that? Especially in such a mature system, quantifying security seems tricky. It really is. And that's a critical piece. Beyond DORA, they're really focusing hard on DevSecOps metrics. Specifically, this idea of security technical debt, STD. Security technical debt. OK, unpack that a bit. So it's not just about finding security bugs. It's about actually quantifying the ongoing financial risk, reputational risk of vulnerabilities you haven't fixed yet. So putting a sort of cost on inaction. Exactly. And then using tools like SonarCube Quality Gates, integrated into the pipeline to proactively stop new security debt from even getting into the system in the first place. Quantifying it with STD is smart. But let's be real, getting teams to actually fix technical debt, especially security debt, that can be a tough sell, culturally, can it? Oh, absolutely. Huge challenge. But the key they found is that by quantifying it, by putting numbers on that risk, it stops being this vague, we should fix this thing. It becomes a visible, measurable part of performance. They can tie it directly back to those big goals, like protecting the brand. It makes the conversation much easier. OK, makes sense. Data helps make it tangible. So prediction, measurement. What about the structural stuff, like problems that build up over seven or eight years? Does the data help with things like pipeline sprawl? Yeah, that's where the rubber meets the road, isn't it? Any system this old inevitably deals with practical stuff, like pipeline sprawl. Dozens or hundreds of slightly different, unmanaged bill scripts popping up everywhere. Chaos. Total chaos potential. And making sure really powerful tools, like Jenkins shared libraries, these reusable code blocks that define how tons of pipelines run, are treated like real mission critical software. Not just script someone through together. Exactly. They need proper testing, proper management. Because a bug in a shared library, wow, that could break hundreds or thousands of those 10,000 daily builds instantly. The eyesight data helps pinpoint where the sprawl is worst, where inconsistencies are causing failures, and the blast radius of a bad shared library update. OK, so let's tie it all together. We've got prediction, derarometrics, security technical debt, tackling sprawl. What's the ultimate payoff? How does all this technical effort translate into actual business value? That's the end game, right? It has to connect back. Shorter lead time for changes. That means features get to customers faster. That's a competitive advantage, plain and simple. Faster delivery. Reduced mean time to restore. That's less downtime. Better customer experience, less lost revenue. Very direct value. And lowering that security technical debt. That's directly protecting customer data, safeguarding the brand's reputation, avoiding potentially massive breach costs. It's basically making sure the tech speaks the language the business understands. Speed, stability, security cost. This has been a really insightful deep dive. It truly shows how an organization, especially one with this kind of mature system and data history, can really evolve, become more than just an IT cost center, but a strategic partner to the business. Absolutely. It's a powerful case study. It shows how understanding and crucially, proactively managing your operational data, even if you're not at 10,000 builds a day, even on a smaller scale, can transform it. Turn it from looking backwards at problems to looking forwards, predicting issues, driving real efficiency and innovation. So listening to this blueprint, what really stands out to you? How might you, in your world, start leveraging your own historical data, maybe in a smaller way, to predict what's coming next and drive tangible business value? Something to think about.
+
+============================================================
+TIMESTAMPED SEGMENTS
+============================================================
+
+[00:00 --> 00:01]  Welcome to the deep dive.
+[00:01 --> 00:05]  Today we're plunging into a really fascinating blueprint.
+[00:05 --> 00:08]  It's for a DevOps ecosystem that's already
+[00:08 --> 00:09]  running at just a massive scale.
+[00:09 --> 00:10]  Massive is right.
+[00:10 --> 00:13]  We're talking over 10,000 builds every single day.
+[00:13 --> 00:14]  Wow.
+[00:14 --> 00:17]  And it's got, what, a seven or eight year history behind it?
+[00:17 --> 00:18]  So a lot of data.
+[00:18 --> 00:19]  A ton of data.
+[00:19 --> 00:19]  Yeah.
+[00:19 --> 00:21]  And what's really interesting here, I think,
+[00:21 --> 00:24]  is that it's not just about keeping the lights on,
+[00:24 --> 00:26]  you know, managing operations day to day.
+[00:26 --> 00:28]  It's about this big strategic pivot they're making.
+[00:28 --> 00:30]  A pivot how?
+[00:30 --> 00:33]  Well, they're shifting from being sort of reactive
+[00:33 --> 00:35]  and focused on the tools themselves
+[00:35 --> 00:38]  to being much more proactive, data driven,
+[00:38 --> 00:40]  really trying to turn all that technical muscle into,
+[00:40 --> 00:42]  like, direct business value.
+[00:42 --> 00:43]  It's a whole mindset change.
+[00:43 --> 00:44]  OK.
+[00:44 --> 00:45]  And you mentioned the data.
+[00:45 --> 00:48]  The secret weapon here seems to be this eyesight database
+[00:48 --> 00:48]  they have.
+[00:48 --> 00:49]  Exactly.
+[00:49 --> 00:49]  That's the key.
+[00:49 --> 00:54]  It's meticulously captured all the CI-CD data for years.
+[00:54 --> 00:56]  Logs, tests, deployments.
+[00:56 --> 00:59]  For every single one of those 10,000 daily builds.
+[00:59 --> 01:00]  Every single one.
+[01:00 --> 01:01]  It's an incredible asset.
+[01:01 --> 01:04]  So our mission today, really, is to dig
+[01:04 --> 01:08]  into how they're taking this mountain of historical data
+[01:08 --> 01:11]  and turning it into, well, predictive intelligence.
+[01:11 --> 01:11]  All right.
+[01:11 --> 01:12]  Let's unpack that.
+[01:12 --> 01:13]  They've got the data.
+[01:13 --> 01:15]  How are they actually shifting their approach?
+[01:15 --> 01:19]  What are the big goals they're aiming for?
+[01:19 --> 01:23]  So they've basically laid out four foundational goals.
+[01:23 --> 01:25]  It's about speeding up time to market, number one.
+[01:25 --> 01:25]  Make big sense.
+[01:25 --> 01:27]  Then enhancing operational stability,
+[01:27 --> 01:29]  keeping things running smoothly.
+[01:29 --> 01:33]  Also, proactively managing security and compliance,
+[01:33 --> 01:34]  which is huge.
+[01:34 --> 01:37]  And finally, fostering better cross-functional excellence.
+[01:37 --> 01:39]  Getting teams to work together better.
+[01:39 --> 01:40]  OK.
+[01:40 --> 01:42]  But how does the eyesight data actually help with those?
+[01:42 --> 01:44]  Especially the prediction part you mentioned.
+[01:44 --> 01:45]  Right.
+[01:45 --> 01:46]  That's the exciting bit.
+[01:46 --> 01:46]  Think about it.
+[01:46 --> 01:48]  10,000 bills a day.
+[01:48 --> 01:52]  Even tiny recurring problems become huge bottlenecks.
+[01:52 --> 01:53]  Oh, definitely.
+[01:53 --> 01:54]  Slows everything down.
+[01:54 --> 01:55]  Exactly.
+[01:55 --> 01:59]  So the vision is to use machine learning on that eyesight data,
+[01:59 --> 02:02]  not just to figure out why something failed after the fact,
+[02:02 --> 02:06]  but to actually predict failures before they happen.
+[02:06 --> 02:09]  Maybe even intelligently pick which tests
+[02:09 --> 02:11]  are most relevant to run for a specific change.
+[02:11 --> 02:14]  So like predicting build failures or even selecting
+[02:14 --> 02:15]  tests.
+[02:15 --> 02:15]  Yeah.
+[02:15 --> 02:18]  Think like Netflix predicting server issues
+[02:18 --> 02:21]  or Spotify optimizing which tests to run.
+[02:21 --> 02:23]  It's applying that predictive power to the whole development
+[02:23 --> 02:24]  pipeline.
+[02:24 --> 02:27]  Moving from oops, broken again to we saw that coming.
+[02:27 --> 02:29]  That sounds incredibly powerful.
+[02:29 --> 02:31]  But OK, scale again.
+[02:31 --> 02:32]  10,000 bills.
+[02:32 --> 02:35]  How do they even measure if this whole transformation is working?
+[02:35 --> 02:36]  What's the yardstick?
+[02:36 --> 02:37]  Good question.
+[02:37 --> 02:39]  They're adopting the DORA framework.
+[02:39 --> 02:40]  DevOps Research and Assessment.
+[02:40 --> 02:41]  Ah, DORA.
+[02:41 --> 02:42]  Heard of it?
+[02:42 --> 02:42]  Yeah.
+[02:42 --> 02:43]  Gives them that common language.
+[02:43 --> 02:46]  For velocity, you've got metrics like deployment frequency, lead
+[02:46 --> 02:47]  time for changes.
+[02:47 --> 02:48]  Right.
+[02:48 --> 02:49]  How fast are we going?
+[02:49 --> 02:49]  Exactly.
+[02:49 --> 02:52]  And then for stability, you look at change failure rate
+[02:52 --> 02:53]  and mean time to restore.
+[02:53 --> 02:56]  How often do changes break things and how fast can we fix it?
+[02:56 --> 03:01]  But what's really cool here is that the granularity from eyesight
+[03:01 --> 03:04]  lets them go deeper than just the raw DORA numbers.
+[03:04 --> 03:06]  They can see bottlenecks not just in a metric,
+[03:06 --> 03:10]  but maybe in the handoff between two teams.
+[03:10 --> 03:11]  Finding those hidden friction points.
+[03:11 --> 03:12]  Precisely.
+[03:12 --> 03:13]  It adds another layer.
+[03:13 --> 03:16]  OK, DORA covers velocity and stability.
+[03:16 --> 03:19]  But you also mentioned security as a pillar.
+[03:19 --> 03:20]  How do they measure that?
+[03:20 --> 03:22]  Especially in such a mature system,
+[03:22 --> 03:24]  quantifying security seems tricky.
+[03:24 --> 03:24]  It really is.
+[03:24 --> 03:26]  And that's a critical piece.
+[03:26 --> 03:29]  Beyond DORA, they're really focusing hard
+[03:29 --> 03:30]  on DevSecOps metrics.
+[03:30 --> 03:34]  Specifically, this idea of security technical debt, STD.
+[03:34 --> 03:35]  Security technical debt.
+[03:35 --> 03:37]  OK, unpack that a bit.
+[03:37 --> 03:39]  So it's not just about finding security bugs.
+[03:39 --> 03:43]  It's about actually quantifying the ongoing financial risk,
+[03:43 --> 03:45]  reputational risk of vulnerabilities
+[03:45 --> 03:46]  you haven't fixed yet.
+[03:46 --> 03:48]  So putting a sort of cost on inaction.
+[03:48 --> 03:49]  Exactly.
+[03:49 --> 03:52]  And then using tools like SonarCube Quality Gates,
+[03:52 --> 03:55]  integrated into the pipeline to proactively stop
+[03:55 --> 03:57]  new security debt from even getting
+[03:57 --> 03:58]  into the system in the first place.
+[03:58 --> 04:01]  Quantifying it with STD is smart.
+[04:01 --> 04:03]  But let's be real, getting teams to actually fix
+[04:03 --> 04:06]  technical debt, especially security debt,
+[04:06 --> 04:08]  that can be a tough sell, culturally, can it?
+[04:08 --> 04:09]  Oh, absolutely.
+[04:09 --> 04:10]  Huge challenge.
+[04:10 --> 04:14]  But the key they found is that by quantifying it,
+[04:14 --> 04:17]  by putting numbers on that risk, it
+[04:17 --> 04:20]  stops being this vague, we should fix this thing.
+[04:20 --> 04:24]  It becomes a visible, measurable part of performance.
+[04:24 --> 04:26]  They can tie it directly back to those big goals,
+[04:26 --> 04:28]  like protecting the brand.
+[04:28 --> 04:30]  It makes the conversation much easier.
+[04:30 --> 04:30]  OK, makes sense.
+[04:30 --> 04:32]  Data helps make it tangible.
+[04:32 --> 04:34]  So prediction, measurement.
+[04:34 --> 04:38]  What about the structural stuff, like problems that build up
+[04:38 --> 04:40]  over seven or eight years?
+[04:40 --> 04:43]  Does the data help with things like pipeline sprawl?
+[04:43 --> 04:45]  Yeah, that's where the rubber meets the road, isn't it?
+[04:45 --> 04:48]  Any system this old inevitably deals with practical stuff,
+[04:48 --> 04:49]  like pipeline sprawl.
+[04:49 --> 04:52]  Dozens or hundreds of slightly different, unmanaged bill
+[04:52 --> 04:53]  scripts popping up everywhere.
+[04:53 --> 04:54]  Chaos.
+[04:54 --> 04:56]  Total chaos potential.
+[04:56 --> 04:58]  And making sure really powerful tools,
+[04:58 --> 05:01]  like Jenkins shared libraries, these reusable code blocks
+[05:01 --> 05:03]  that define how tons of pipelines run,
+[05:03 --> 05:06]  are treated like real mission critical software.
+[05:06 --> 05:07]  Not just script someone through together.
+[05:07 --> 05:08]  Exactly.
+[05:08 --> 05:10]  They need proper testing, proper management.
+[05:10 --> 05:14]  Because a bug in a shared library, wow,
+[05:14 --> 05:16]  that could break hundreds or thousands of those 10,000 daily
+[05:16 --> 05:18]  builds instantly.
+[05:18 --> 05:21]  The eyesight data helps pinpoint where the sprawl is worst,
+[05:21 --> 05:23]  where inconsistencies are causing
+[05:23 --> 05:27]  failures, and the blast radius of a bad shared library update.
+[05:27 --> 05:28]  OK, so let's tie it all together.
+[05:28 --> 05:31]  We've got prediction, derarometrics, security
+[05:31 --> 05:33]  technical debt, tackling sprawl.
+[05:33 --> 05:35]  What's the ultimate payoff?
+[05:35 --> 05:36]  How does all this technical effort
+[05:36 --> 05:39]  translate into actual business value?
+[05:39 --> 05:40]  That's the end game, right?
+[05:40 --> 05:41]  It has to connect back.
+[05:41 --> 05:43]  Shorter lead time for changes.
+[05:43 --> 05:45]  That means features get to customers faster.
+[05:45 --> 05:47]  That's a competitive advantage, plain and simple.
+[05:47 --> 05:48]  Faster delivery.
+[05:48 --> 05:50]  Reduced mean time to restore.
+[05:50 --> 05:51]  That's less downtime.
+[05:51 --> 05:54]  Better customer experience, less lost revenue.
+[05:54 --> 05:55]  Very direct value.
+[05:55 --> 05:58]  And lowering that security technical debt.
+[05:58 --> 06:00]  That's directly protecting customer data,
+[06:00 --> 06:02]  safeguarding the brand's reputation,
+[06:02 --> 06:05]  avoiding potentially massive breach costs.
+[06:05 --> 06:07]  It's basically making sure the tech speaks
+[06:07 --> 06:09]  the language the business understands.
+[06:09 --> 06:11]  Speed, stability, security cost.
+[06:11 --> 06:14]  This has been a really insightful deep dive.
+[06:14 --> 06:16]  It truly shows how an organization, especially
+[06:16 --> 06:20]  one with this kind of mature system and data history,
+[06:20 --> 06:24]  can really evolve, become more than just an IT cost center,
+[06:24 --> 06:26]  but a strategic partner to the business.
+[06:26 --> 06:27]  Absolutely.
+[06:27 --> 06:28]  It's a powerful case study.
+[06:28 --> 06:31]  It shows how understanding and crucially,
+[06:31 --> 06:33]  proactively managing your operational data,
+[06:33 --> 06:36]  even if you're not at 10,000 builds a day,
+[06:36 --> 06:38]  even on a smaller scale, can transform it.
+[06:38 --> 06:39]  Turn it from looking backwards at problems
+[06:39 --> 06:41]  to looking forwards, predicting issues,
+[06:41 --> 06:43]  driving real efficiency and innovation.
+[06:43 --> 06:46]  So listening to this blueprint, what really stands out to you?
+[06:46 --> 06:48]  How might you, in your world, start
+[06:48 --> 06:50]  leveraging your own historical data,
+[06:50 --> 06:53]  maybe in a smaller way, to predict what's coming next
+[06:53 --> 06:55]  and drive tangible business value?
+[06:55 --> 06:57]  Something to think about.
