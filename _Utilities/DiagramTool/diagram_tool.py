@@ -1877,8 +1877,27 @@ class DiagramApp:
         body = tk.Frame(self.root, bg=BG); body.pack(fill="both",expand=True)
         self._build_palette(body)
         self._build_info(body)
-        self.canvas = tk.Canvas(body, bg=BG, highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True)
+
+        # Canvas frame with scrollbars
+        canvas_frame = tk.Frame(body, bg=BG)
+        canvas_frame.pack(fill="both", expand=True)
+
+        self._h_scroll = tk.Scrollbar(canvas_frame, orient="horizontal",
+                                       bg=SURFACE2, troughcolor=BG)
+        self._v_scroll = tk.Scrollbar(canvas_frame, orient="vertical",
+                                       bg=SURFACE2, troughcolor=BG)
+        self._h_scroll.pack(side="bottom", fill="x")
+        self._v_scroll.pack(side="right",  fill="y")
+
+        self.canvas = tk.Canvas(canvas_frame, bg=BG, highlightthickness=0,
+                                xscrollcommand=self._h_scroll.set,
+                                yscrollcommand=self._v_scroll.set,
+                                scrollregion=(0, 0, 4000, 4000))
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self._h_scroll.config(command=self._scroll_x)
+        self._v_scroll.config(command=self._scroll_y)
+
         self.set_mode("select")
 
     def _build_palette(self, parent):
@@ -2034,6 +2053,60 @@ class DiagramApp:
         return None
 
     # ═══ EVENTS ═══════════════════════════════════════════════════════════════
+
+    def _scroll_x(self, *args):
+        """Horizontal scrollbar handler — updates offset_x and redraws."""
+        # args = ("moveto", fraction) or ("scroll", n, "units"/"pages")
+        sr = self.canvas.cget("scrollregion").split()
+        if not sr: return
+        total_w = float(sr[2])
+        view = self.canvas.xview()
+        if args[0] == "moveto":
+            frac = float(args[1])
+            self.offset_x = -frac * total_w
+        elif args[0] == "scroll":
+            step = int(args[1]) * (total_w * 0.02 if args[2]=="units" else total_w * 0.1)
+            self.offset_x -= step
+        self._draw_all()
+
+    def _scroll_y(self, *args):
+        """Vertical scrollbar handler — updates offset_y and redraws."""
+        sr = self.canvas.cget("scrollregion").split()
+        if not sr: return
+        total_h = float(sr[3])
+        if args[0] == "moveto":
+            frac = float(args[1])
+            self.offset_y = -frac * total_h
+        elif args[0] == "scroll":
+            step = int(args[1]) * (total_h * 0.02 if args[2]=="units" else total_h * 0.1)
+            self.offset_y -= step
+        self._draw_all()
+
+    def _update_scrollregion(self):
+        """Expand scrollregion to fit all content + viewport, update scrollbar thumbs."""
+        cw = self.canvas.winfo_width() or 1200
+        ch = self.canvas.winfo_height() or 700
+        if self.boxes:
+            all_x = [b.x for b in self.boxes] + [b.x+b.w for b in self.boxes]
+            all_y = [b.y for b in self.boxes] + [b.y+b.h for b in self.boxes]
+            # Content bounds in canvas pixels
+            cx1 = min(all_x)*self.zoom + self.offset_x
+            cy1 = min(all_y)*self.zoom + self.offset_y
+            cx2 = max(all_x)*self.zoom + self.offset_x + 80
+            cy2 = max(all_y)*self.zoom + self.offset_y + 80
+            # Scrollregion covers both negative and positive space
+            sr_x1 = min(0, cx1 - 60)
+            sr_y1 = min(0, cy1 - 60)
+            sr_x2 = max(cw, cx2 + 60)
+            sr_y2 = max(ch, cy2 + 60)
+            self.canvas.configure(scrollregion=(sr_x1, sr_y1, sr_x2, sr_y2))
+            # Update scrollbar thumb positions
+            rx = -sr_x1; ry = -sr_y1
+            tw = sr_x2 - sr_x1; th = sr_y2 - sr_y1
+            self.canvas.xview_moveto(rx / tw if tw else 0)
+            self.canvas.yview_moveto(ry / th if th else 0)
+        else:
+            self.canvas.configure(scrollregion=(0, 0, max(cw,4000), max(ch,4000)))
 
     def _bind_events(self):
         c=self.canvas
@@ -2311,6 +2384,7 @@ class DiagramApp:
             cx,cy=self._to_canvas(*self.arrow_src.center())
             c.create_oval(cx-7,cy-7,cx+7,cy+7,fill=SEL_COL,outline="")
         if self.minimap_enabled.get(): self._draw_minimap()
+        self._update_scrollregion()
 
     def _draw_grid(self):
         c=self.canvas; w=c.winfo_width() or 1400; h=c.winfo_height() or 800
@@ -2932,18 +3006,20 @@ class DiagramApp:
                 if not layer: break
                 layers.append(layer); placed.update(layer)
                 nxt=set()
-                for src in layer:
+                for src2 in layer:
                     for e in parsed_edges:
-                        if e["src"]==src and e["dst"] not in placed:
+                        if e["src"]==src2 and e["dst"] not in placed:
                             nxt.add(e["dst"])
                 layer=list(nxt)
             remain=[nm for nm in names if nm not in placed]
             if remain: layers.append(remain)
-            CW,RH,SX,SY=200,110,40,40
+            # Wider spacing for large diagrams
+            BOX_W_L=180
+            CW=BOX_W_L+30; RH=130; SX=50; SY=50
             pos={}
             for li,lay in enumerate(layers):
                 for ci,nm in enumerate(lay):
-                    pos[nm]=(SX+ci*(CW+20), SY+li*(RH+20))
+                    pos[nm]=(SX+ci*(CW), SY+li*(RH))
             return pos
 
         # ── Canvas draw ────────────────────────────────────────────────────
@@ -2951,14 +3027,19 @@ class DiagramApp:
 
         def draw_canvas():
             c=preview_canvas; c.delete("all")
-            W=c.winfo_width() or 800; H=c.winfo_height() or 500
-            # Grid
-            for x in range(0,W,40): c.create_line(x,0,x,H,fill="#252535",width=1)
-            for y in range(0,H,40): c.create_line(0,y,W,y,fill="#252535",width=1)
             if not parsed_nodes: return
             pos=do_layout()
             pos_cache.update(pos)
             BOX_W,BOX_H=160,52
+            # Compute virtual canvas size from content
+            all_x=[p[0]+BOX_W for p in pos.values()]
+            all_y=[p[1]+BOX_H for p in pos.values()]
+            VW=max(3000, max(all_x)+120) if all_x else 3000
+            VH=max(2000, max(all_y)+120) if all_y else 2000
+            c.configure(scrollregion=(0,0,VW,VH))
+            # Grid covers full virtual space
+            for x in range(0,VW,40): c.create_line(x,0,x,VH,fill="#252535",width=1)
+            for y in range(0,VH,40): c.create_line(0,y,VW,y,fill="#252535",width=1)
             # Edges first
             for e in parsed_edges:
                 sp=pos.get(e["src"]); dp=pos.get(e["dst"])
@@ -3615,13 +3696,54 @@ SIEM Splunk -> API Gateway [label: collect logs]""",
         editor.tag_configure("arrow",   foreground="#cc7744")
         editor.tag_configure("bracket", foreground="#a89ee8")
 
-        # Right: preview canvas
+        # Right: preview canvas with H+V scrollbars
         right = tk.Frame(pane, bg=BG); right.pack(side="left", fill="both", expand=True)
-        tk.Label(right, text="Live preview  (drag nodes to rearrange)",
+        tk.Label(right, text="Live preview  (drag nodes · scroll to pan · mousewheel zoom)",
                  bg=BG, fg=TEXT_MUTED, font=("Segoe UI",8), pady=4).pack()
 
-        preview_canvas = tk.Canvas(right, bg="#1e1e2e", highlightthickness=0)
-        preview_canvas.pack(fill="both", expand=True, padx=4, pady=(0,4))
+        cv_frame = tk.Frame(right, bg=BG)
+        cv_frame.pack(fill="both", expand=True, padx=4, pady=(0,4))
+
+        # Scrollbars
+        h_scroll = tk.Scrollbar(cv_frame, orient="horizontal")
+        v_scroll = tk.Scrollbar(cv_frame, orient="vertical")
+        h_scroll.pack(side="bottom", fill="x")
+        v_scroll.pack(side="right",  fill="y")
+
+        preview_canvas = tk.Canvas(cv_frame, bg="#1e1e2e", highlightthickness=0,
+                                   xscrollcommand=h_scroll.set,
+                                   yscrollcommand=v_scroll.set,
+                                   scrollregion=(0, 0, 3000, 3000))
+        preview_canvas.pack(side="left", fill="both", expand=True)
+
+        h_scroll.config(command=preview_canvas.xview)
+        v_scroll.config(command=preview_canvas.yview)
+
+        # Middle-mouse pan on preview
+        _prev_pan = [None]
+        def prev_pan_start(e): _prev_pan[0]=(e.x, e.y)
+        def prev_pan_move(e):
+            if _prev_pan[0]:
+                dx=_prev_pan[0][0]-e.x; dy=_prev_pan[0][1]-e.y
+                preview_canvas.xview_scroll(int(dx/2),"units")
+                preview_canvas.yview_scroll(int(dy/2),"units")
+                _prev_pan[0]=(e.x,e.y)
+        preview_canvas.bind("<ButtonPress-2>",  prev_pan_start)
+        preview_canvas.bind("<B2-Motion>",       prev_pan_move)
+        preview_canvas.bind("<ButtonRelease-2>", lambda e: _prev_pan.__setitem__(0,None))
+
+        # Mousewheel zoom on preview
+        _prev_zoom=[1.0]
+        def prev_wheel(e):
+            factor = 1.1 if (e.delta>0 if hasattr(e,"delta") else e.num==4) else 0.9
+            _prev_zoom[0] = max(0.3, min(4.0, _prev_zoom[0]*factor))
+            # Adjust scrollregion to simulate zoom
+            sz = int(3000 * _prev_zoom[0])
+            preview_canvas.configure(scrollregion=(0,0,sz,sz))
+            on_change()
+        preview_canvas.bind("<MouseWheel>", prev_wheel)
+        preview_canvas.bind("<Button-4>",   prev_wheel)
+        preview_canvas.bind("<Button-5>",   prev_wheel)
 
         # ── Syntax highlighting ────────────────────────────────────────────
         def highlight():
@@ -3660,24 +3782,36 @@ SIEM Splunk -> API Gateway [label: collect logs]""",
         drag_state={"node":None,"ox":0,"oy":0}
         BOX_W,BOX_H=160,52
 
+        def _cv_xy(e):
+            """Convert screen event coords to canvas (virtual) coords."""
+            return (preview_canvas.canvasx(e.x),
+                    preview_canvas.canvasy(e.y))
+
         def pc_click(e):
+            cx,cy=_cv_xy(e)
             for nm,p in pos_cache.items():
-                if p[0]<=e.x<=p[0]+BOX_W and p[1]<=e.y<=p[1]+BOX_H:
-                    drag_state.update({"node":nm,"ox":e.x-p[0],"oy":e.y-p[1]})
+                if p[0]<=cx<=p[0]+BOX_W and p[1]<=cy<=p[1]+BOX_H:
+                    drag_state.update({"node":nm,"ox":cx-p[0],"oy":cy-p[1]})
                     return
         def pc_drag(e):
             nm=drag_state["node"]
             if nm:
-                pos_cache[nm]=(e.x-drag_state["ox"],e.y-drag_state["oy"])
+                cx,cy=_cv_xy(e)
+                pos_cache[nm]=(cx-drag_state["ox"],cy-drag_state["oy"])
                 draw_canvas_with_positions()
         def pc_release(e): drag_state["node"]=None
 
         def draw_canvas_with_positions():
             """Redraw using cached (possibly manually moved) positions."""
             c=preview_canvas; c.delete("all")
-            W=c.winfo_width() or 800; H=c.winfo_height() or 500
-            for x in range(0,W,40): c.create_line(x,0,x,H,fill="#252535",width=1)
-            for y in range(0,H,40): c.create_line(0,y,W,y,fill="#252535",width=1)
+            BOX_W2,BOX_H2=160,52
+            all_x2=[p[0]+BOX_W2 for p in pos_cache.values()]
+            all_y2=[p[1]+BOX_H2 for p in pos_cache.values()]
+            VW2=max(3000, max(all_x2)+120) if all_x2 else 3000
+            VH2=max(2000, max(all_y2)+120) if all_y2 else 2000
+            c.configure(scrollregion=(0,0,VW2,VH2))
+            for x in range(0,VW2,40): c.create_line(x,0,x,VH2,fill="#252535",width=1)
+            for y in range(0,VH2,40): c.create_line(0,y,VW2,y,fill="#252535",width=1)
             # Edges
             for e in parsed_edges:
                 sp=pos_cache.get(e["src"]); dp=pos_cache.get(e["dst"])
@@ -3739,7 +3873,7 @@ SIEM Splunk -> API Gateway [label: collect logs]""",
         preview_canvas.bind("<ButtonPress-1>",   pc_click)
         preview_canvas.bind("<B1-Motion>",        pc_drag)
         preview_canvas.bind("<ButtonRelease-1>",  pc_release)
-        preview_canvas.bind("<Configure>",        lambda e: on_change())
+        preview_canvas.bind("<Configure>",        lambda e: draw_canvas_with_positions() if pos_cache else on_change())
 
         # ── Bottom buttons ─────────────────────────────────────────────────
         bot = tk.Frame(dlg, bg=SURFACE); bot.pack(fill="x", pady=6)
@@ -3758,7 +3892,11 @@ SIEM Splunk -> API Gateway [label: collect logs]""",
             Box._id = Arrow._id = FloatText._id = 0
             self.boxes.clear(); self.arrows.clear(); self.floattexts.clear()
 
-            pos = do_layout()
+            # Use pos_cache (preserves dragged positions from preview)
+            # Fall back to do_layout() only for nodes not yet in cache
+            auto_pos = do_layout()
+            pos = {nm: pos_cache.get(nm, auto_pos.get(nm, (100,100)))
+                   for nm in parsed_nodes}
             id_map = {}  # name -> Box id
             for nm, nd in parsed_nodes.items():
                 Box._id += 1
@@ -3783,12 +3921,29 @@ SIEM Splunk -> API Gateway [label: collect logs]""",
                 a.id = Arrow._id
                 self.arrows.append(a)
 
-            self.offset_x = 40; self.offset_y = 40
-            self.zoom = 1.0; self.zoom_var.set("100%")
+            # Auto-fit: zoom out to show full diagram
+            self.root.update_idletasks()
+            cw = self.canvas.winfo_width() or 1200
+            ch = self.canvas.winfo_height() or 700
+            if self.boxes:
+                all_x = [b.x for b in self.boxes] + [b.x+b.w for b in self.boxes]
+                all_y = [b.y for b in self.boxes] + [b.y+b.h for b in self.boxes]
+                dw = max(all_x) - min(all_x) + 120
+                dh = max(all_y) - min(all_y) + 120
+                z = min(cw/dw, ch/dh, 1.0)
+                z = max(0.15, round(z, 2))
+                self.zoom = z
+                self.zoom_var.set(f"{int(z*100)}%")
+                self.offset_x = 40
+                self.offset_y = 40
+            else:
+                self.zoom = 1.0; self.zoom_var.set("100%")
+                self.offset_x = 40; self.offset_y = 40
             self._draw_all()
             self.status_var.set(
                 f"Loaded from Text-to-Diagram  •  {len(self.boxes)} nodes · "
-                f"{len(self.arrows)} edges  •  You can now edit, resize and rearrange")
+                f"{len(self.arrows)} edges  •  Drag to pan · Scroll to zoom · "
+                f"Positions from preview preserved")
             dlg.destroy()
 
         def save_dsl():
