@@ -1,0 +1,7 @@
+# PyPlayer Pure Python Edition
+# Zero system dependencies — everything via pip
+
+customtkinter>=5.2.0
+ffpyplayer>=4.3.5
+mutagen>=1.47.0
+Pillow>=10.0.0

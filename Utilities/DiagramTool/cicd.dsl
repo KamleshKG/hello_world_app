@@ -1,0 +1,23 @@
+# CI/CD Pipeline  (GitHub Actions / Jenkins)
+Actor: Developer
+System: GitHub [color: gray]
+System: GitHub Actions [color: blue]
+System: SonarQube [color: teal]
+System: Trivy Scanner [color: red]
+System: Docker Registry [color: purple]
+System: Kubernetes Dev [color: teal]
+System: Kubernetes Prod [color: green]
+System: Prometheus [color: orange]
+System: Slack [color: gray]
+
+Developer -> GitHub [label: git push / PR]
+GitHub -> GitHub Actions [label: webhook trigger]
+GitHub Actions -> SonarQube [label: code quality scan]
+GitHub Actions -> Trivy Scanner [label: image security scan]
+GitHub Actions -> Docker Registry [label: push image]
+Docker Registry -> Kubernetes Dev [label: deploy to dev]
+Kubernetes Dev --> GitHub Actions [label: health check OK]
+GitHub Actions -> Kubernetes Prod [label: promote to prod]
+Kubernetes Dev -> Prometheus [label: metrics]
+Kubernetes Prod -> Prometheus [label: metrics]
+GitHub Actions -> Slack [label: notify team]
