@@ -1,0 +1,16 @@
+
+svc-3482219c-a389-4079-b18b-d50662524e8a-shared-dml.aws-virginia-6.svc.singlestore.com
+3333
+kemails2006
+
+db_kamlesh_63c9e
+
+# SSL Configuration (REQUIRED for SingleStore Cloud)
+SSL=true
+VERIFY_CERT=true
+
+# Connection Pool Settings
+SIZE=5
+OVERFLOW=10
+RECYCLE=3600
+q%?d@w{Wa^5|f#^*v7e%!1

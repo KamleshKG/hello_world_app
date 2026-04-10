@@ -1,0 +1,60 @@
+{
+  "quest_category": "Infrastructure as Code",
+  "quests": [
+    {
+      "id": "iac_01",
+      "title": "Terraform Initiate",
+      "description": "Create your first Terraform configuration file",
+      "points": 50,
+      "difficulty": "beginner",
+      "prerequisites": [],
+      "completion_criteria": "Submit a Terraform .tf file with a basic resource definition",
+      "badge": "terraform_starter",
+      "tags": ["terraform", "iac", "beginner"]
+    },
+    {
+      "id": "iac_02",
+      "title": "Cloud Formation Specialist",
+      "description": "Deploy an AWS resource using CloudFormation",
+      "points": 75,
+      "difficulty": "intermediate",
+      "prerequisites": ["iac_01"],
+      "completion_criteria": "Successfully deploy a stack using AWS CloudFormation",
+      "badge": "cloudformation_pro",
+      "tags": ["aws", "cloudformation", "intermediate"]
+    },
+    {
+      "id": "iac_03",
+      "title": "Ansible Automation Guru",
+      "description": "Create an Ansible playbook to configure multiple servers",
+      "points": 100,
+      "difficulty": "intermediate",
+      "prerequisites": ["iac_01"],
+      "completion_criteria": "Submit an Ansible playbook that configures at least 3 different server aspects",
+      "badge": "ansible_master",
+      "tags": ["ansible", "automation", "configuration"]
+    },
+    {
+      "id": "iac_04",
+      "title": "Multi-Cloud Architect",
+      "description": "Create Terraform configurations for both AWS and Azure",
+      "points": 150,
+      "difficulty": "advanced",
+      "prerequisites": ["iac_01", "iac_02"],
+      "completion_criteria": "Submit Terraform code that deploys resources to both AWS and Azure",
+      "badge": "multi_cloud_expert",
+      "tags": ["terraform", "aws", "azure", "advanced"]
+    },
+    {
+      "id": "iac_05",
+      "title": "GitOps Practitioner",
+      "description": "Implement infrastructure changes through Git workflows",
+      "points": 125,
+      "difficulty": "advanced",
+      "prerequisites": ["iac_01"],
+      "completion_criteria": "Set up a GitOps workflow for infrastructure changes with automated deployment",
+      "badge": "gitops_specialist",
+      "tags": ["gitops", "advanced", "automation"]
+    }
+  ]
+}

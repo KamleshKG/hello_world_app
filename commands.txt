@@ -1,0 +1,22 @@
+
+
+
+vsce package
+
+code --list-extentions
+
+vsce verify
+
+npm run package
+
+code --install-extension bitbucket-pr-copilot-0.4.0.vsix
+
+
+ $env:BITBUCKET_EMAIL="kemails2006@gmail.com"
+ 
+ node test/test-connection.js 
+ 
+ code --install-extension bitbucket-pr-copilot-0.0.6.vsix --force
+ 
+ 
+ 

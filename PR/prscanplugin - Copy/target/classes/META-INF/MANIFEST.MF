@@ -1,0 +1,24 @@
+Manifest-Version: 1.0
+Atlassian-Build-Date: 2026-02-04T08:47:04+0530
+Atlassian-Plugin-Key: com.baml.prplugin.prscanplugin
+Atlassian-Scan-Attributes: atlassian-check-leaked-osgi-refs=true
+Bnd-LastModified: 1770175025447
+Build-Jdk-Spec: 17
+Bundle-ManifestVersion: 2
+Bundle-Name: prscanplugin
+Bundle-SymbolicName: com.baml.prplugin.prscanplugin
+Bundle-Version: 1.0.0.SNAPSHOT
+Created-By: Apache Maven Bundle Plugin 5.1.9
+DynamicImport-Package: org.springframework.*;version="[5.0,6.0)",*
+Export-Package: com.baml.prplugin.hook;version="1.0.0";uses:="com.atlass
+ ian.bitbucket.hook.repository,javax.annotation"
+Import-Package: com.atlassian.bitbucket.content;resolution:=optional,com
+ .atlassian.bitbucket.hook.repository;resolution:=optional,com.atlassian
+ .bitbucket.pull;resolution:=optional,com.atlassian.bitbucket.repository
+ ;resolution:=optional,com.atlassian.bitbucket.util;resolution:=optional
+ ,com.atlassian.sal.api.pluginsettings;resolution:=optional,java.lang;re
+ solution:=optional,java.lang.invoke;resolution:=optional,java.util;reso
+ lution:=optional,javax.annotation;resolution:=optional,org.osgi.framewo
+ rk;resolution:=optional
+Spring-Context: *
+Tool: Bnd-6.3.1.202206071316

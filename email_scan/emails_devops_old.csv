@@ -1,0 +1,985 @@
+﻿message_id,subject,sender_name,sender_email,received_time,body,body_length,has_attachments,ticket_level,category_hint
+E3A5AD8B89BB55EE1E0EF19F69855DF6,"[RELEASE] Post-Release Report v4.1.8 – Metrics, Lessons Learned & Retro",Fish John,fish.john@devops-team.com,2024-10-21 02:55:00,"Hi Team,
+
+Post-Release Report: v4.1.8 (Released: 4th October 2024)
+Author: Fish John | Written: 21st October 2024 (2-week retrospective)
+
+Release Summary:
+Services deployed: 5 | Duration: 1h 45min | Outcome: SUCCESS with minor incident
+
+What Went Well:
+✅ Zero-downtime deployment achieved using rolling update strategy
+✅ All database migrations backward compatible — no schema lock issues
+✅ Canary deployment for API gateway caught a configuration issue at 10% traffic
+   (would have affected 100% of users if full deploy — canary strategy WORKS)
+✅ Automated rollback tested and confirmed working in staging
+
+What Went Wrong:
+⚠️ INCIDENT: notification-service had elevated error rate (3.2%) for 12 minutes post-deploy
+   Root cause: New RabbitMQ connection pool settings too conservative — thread starvation
+   Fix: Increased connection pool from 10 to 50. Resolved without rollback.
+   
+⚠️ Deployment started 35 minutes late (6:35 PM vs 6:00 PM)
+   Cause: On-call handoff documentation was incomplete. New on-call engineer (Rohit Singh)
+   took 30 min to find runbook. Runbook location moved but Confluence link not updated.
+
+Metrics:
+Deploy frequency: 2 major releases + 1 hotfix in October ✅ (DORA: High)
+Lead time for changes: 4.2 days (target: < 5 days) ✅
+Change failure rate: 1/3 releases needed hotfix = 33% (target: < 15%) ❌ NEEDS IMPROVEMENT
+MTTR (hotfix): 2h 15min (target: < 4 hours) ✅
+
+Action Items from Retro:
+1. Fix all runbook links in Confluence (Owner: Fish John, Due: 25th Oct)
+2. Add RabbitMQ connection pool to release checklist validation
+3. Set change failure rate target review: root cause is race condition in new UPI code — process fix: mandatory concurrent load test for payment features
+
+Fish John
+Release Manager | DevOps Lead",1754,False,Release,Release
+FAA596C502108B8F642D90682E3E8A36,[L1-TKT-1001] Jenkins pipeline failing – Build not triggering on Git push,Fish John,fish.john@devops-team.com,2024-10-20 02:36:00,"Hi Team,
+
+Ticket: L1-TKT-1001 | Priority: Low | Raised by: Dev Team (Ravi Patel)
+Environment: Development | Component: Jenkins CI
+
+Issue Description:
+The Jenkins pipeline for repository 'backend-api' is not triggering automatically when developers push code to the 'develop' branch. Manual builds work fine but webhook-based auto-trigger is broken.
+
+Steps to Reproduce:
+1. Push any commit to develop branch in GitLab
+2. Expected: Jenkins pipeline auto-triggers within 60 seconds
+3. Actual: No build triggered. Manual trigger from Jenkins UI works.
+
+Basic Checks Done:
+- Jenkins service is running (confirmed via systemctl status jenkins)
+- GitLab webhook URL configured: http://jenkins.internal:8080/gitlab/build_now
+- No error visible in Jenkins logs at surface level
+
+Action Taken:
+Checked GitLab webhook settings. Last delivery shows HTTP 403 error.
+Likely cause: Jenkins CSRF token mismatch or API token expired.
+
+Resolution Steps (L1):
+Please verify:
+1. GitLab webhook token matches Jenkins API token
+2. CSRF protection settings in Jenkins → Manage Jenkins → Security
+
+If unresolved, escalating to L2 after 4 hours.
+
+Fish John
+L1 DevOps Support | Ticket Auto-close: 48 hrs if no response",1192,True,L1,CICD
+86B6BEFF79858C35111B5721CC3EF049,[RELEASE] Hotfix Release v4.2.1 – Critical Payment Gateway Bug,Fish John,fish.john@devops-team.com,2024-10-19 08:53:00,"URGENT – Hotfix Release v4.2.1
+
+Release Manager: Fish John | Date: Sunday 20th October 2024, 11:30 PM IST
+Triggered by: P1 Incident INC-2024-445
+
+Incident Summary:
+Post v4.2.0 release, UPI payment success rate dropped to 67% (expected: 99.5%)
+Root cause: payment-service v2.9.0 has a race condition in UPI callback handler
+affecting transactions > ₹10,000. Discovered at 10:45 PM by on-call monitoring.
+
+Impact:
+- 847 failed UPI transactions since 6 PM (18th Oct)
+- Estimated customer impact: ₹2.4 crore in failed transactions
+- Transactions not lost (idempotency keys working) but customers seeing failure UI
+
+Hotfix Details (payment-service v2.9.1):
+Bug: UPI callback webhook handler not thread-safe for concurrent callbacks on same transaction ID
+Fix: Added ReentrantLock on transaction processing in UpiCallbackService.java
+Fix size: 23 lines changed | PR: #4521 | Reviewed by: Vikram Nair (emergency review)
+
+Expedited Testing (90 minutes):
+22:00 – Fix committed and reviewed
+22:15 – Unit tests: 847 tests, 0 failures ✅
+22:30 – Integration test: UPI simulator — 500 concurrent transactions > ₹10,000 ✅
+22:45 – Security review: no new vulnerabilities introduced ✅
+23:00 – Deployed to staging: 100% success rate in 15-min soak ✅
+
+Deployment (23:30 PM – 23:50 PM):
+23:30 – Deployed payment-service v2.9.1 via ArgoCD (rolling, zero downtime)
+23:42 – All pods running new version
+23:45 – UPI success rate: 99.7% ✅ Incident resolved.
+
+Retrospective: Monday 21st Oct, 10 AM
+Customer refund/retry process initiated for 847 affected transactions.
+
+Fish John
+Release Manager + L3 Backend",1582,True,Release,Release
+85E45F00C600BA475AC6885D4C44325C,[L1-TKT-1002] Docker container not starting – Port 8080 already in use,Fish John,fish.john@devops-team.com,2024-10-17 23:49:00,"Hi,
+
+Ticket: L1-TKT-1002 | Priority: Low | Raised by: QA Team (Sneha Roy)
+Environment: QA Server (qa-server-02) | Component: Docker
+
+Issue:
+Docker container 'payment-service' failing to start on qa-server-02.
+Error: ""Error starting userland proxy: listen tcp 0.0.0.0:8080: bind: address already in use""
+
+Investigation:
+Ran: sudo netstat -tulpn | grep 8080
+Output shows: java process PID 23421 is holding port 8080 — this is a zombie process from a previous failed deployment.
+
+Root Cause: Previous Jenkins deployment job crashed mid-way leaving orphan Java process running.
+
+Fix Applied:
+1. sudo kill -9 23421
+2. docker start payment-service
+3. Container started successfully. Health check passing.
+
+Status: RESOLVED ✅
+Time to Resolve: 18 minutes
+No escalation needed.
+
+Please ensure deployment scripts include port cleanup step before container start.
+Created Improvement Request: IR-2024-089
+
+Fish John
+L1 DevOps Support",922,True,L1,CICD
+5A070B9FDB6908D9A91C3FB47DF2AEF6,[RELEASE] Production Release v4.2.0 – Deployment Runbook & Go/No-Go,Fish John,fish.john@devops-team.com,2024-10-17 00:18:00,"Hi Release Team,
+
+Release: v4.2.0 | Date: Friday 18th October 2024, 6:00 PM IST
+Release Manager: Fish John
+Release Type: Major Feature Release
+Deployment Window: 6:00 PM – 9:00 PM IST (3 hours allocated)
+
+Services Being Released (8 services):
+1. payment-service: v2.8.0 → v2.9.0 (new UPI payment gateway integration)
+2. order-service: v3.1.4 → v3.2.0 (bulk order processing optimisation)
+3. user-service: v1.9.2 → v1.9.3 (security patch — session token rotation)
+4. notification-service: v2.2.1 → v2.3.0 (WhatsApp notification channel added)
+5. api-gateway: v5.0.1 → v5.1.0 (rate limiting rules updated)
+6. frontend-web: v8.4.2 → v8.5.0 (new checkout UI)
+7. admin-portal: v2.1.0 → v2.1.1 (bug fixes from sprint 34)
+8. report-service: v1.4.3 → v1.4.4 (PDF export fix)
+
+Go/No-Go Criteria:
+✅ All 8 services passed QA sign-off (QA Lead: Sneha Rao)
+✅ Load test completed: 10,000 concurrent users for 30 min — p99 < 800ms
+✅ Security scan: 0 CRITICAL, 0 HIGH CVEs in new Docker images
+✅ Staging deployment successful (deployed 17th Oct, 24h soak)
+✅ Database migrations tested (3 migrations: 2 backward compatible, 1 with downtime window)
+✅ Rollback plan verified: ArgoCD rollback to v4.1.8 tested in staging
+✅ On-call engineer confirmed: Vikram Nair (phone: +91-9820055432)
+
+DECISION: ✅ GO FOR RELEASE
+
+Deployment Steps:
+18:00 – Deploy DB migrations (2 min downtime for migration 3 of 3)
+18:05 – Deploy payment-service (canary: 10% traffic)
+18:15 – Monitor error rate (threshold: < 0.1%) — PASSED ✅
+18:20 – Promote payment-service to 100% + deploy remaining 7 services via ArgoCD
+18:45 – All services deployed. Smoke tests running.
+19:00 – All smoke tests passed ✅
+19:15 – Load test on production (5 min burst) — within SLO ✅
+
+Release v4.2.0: SUCCESSFUL ✅
+Post-release monitoring: 24h enhanced alerting window active.
+
+Fish John
+Release Manager",1837,True,Release,Release
+277E6A77F31D9923657311420411766B,[L1-TKT-1003] SonarQube quality gate failing – Code coverage below threshold,Fish John,fish.john@devops-team.com,2024-10-16 05:52:00,"Hi Team,
+
+Ticket: L1-TKT-1003 | Priority: Low | Raised by: Dev Team (Arjun Mehta)
+Environment: CI Pipeline | Component: SonarQube 9.9 LTS
+
+Issue:
+CI pipeline failing at SonarQube quality gate step for project 'user-service'.
+Error: ""Quality gate status: FAILED – Coverage: 58.2% (threshold: 80%)""
+
+Context:
+New feature branch 'feature/payment-refactor' merged 2 new service classes without unit tests.
+Code coverage dropped from 84% to 58.2%.
+
+This is NOT a tool failure — this is a code quality issue.
+
+Action:
+1. Informed dev lead Arjun Mehta that pipeline will remain blocked until coverage meets threshold.
+2. Quality gate is working as designed — this is expected behaviour.
+3. Dev team must add unit tests before merge is allowed.
+
+Recommendation:
+- Add pre-commit hooks to warn developers when coverage drops locally
+- Consider reducing threshold temporarily to 70% during refactor (requires manager approval)
+
+Status: PENDING DEV ACTION – Ticket assigned to Arjun Mehta
+SLA: Dev team to resolve within 1 business day.
+
+Fish John
+L1 DevOps Support",1054,True,L1,CICD
+051716334C8E033153230087985AB78A,[RELEASE] Release Planning v4.3.0 – Sprint 36 Scope & Deployment Strategy,Fish John,fish.john@devops-team.com,2024-10-15 06:30:00,"Hi Product + Engineering Team,
+
+Release Planning: v4.3.0 | Target Date: Friday 15th November 2024
+Release Manager: Fish John
+
+Sprint 36 Scope (confirmed features for v4.3.0):
+
+New Features:
+1. Multi-currency support (USD, EUR, GBP) — Owner: Backend team (8 story points)
+2. AI-powered fraud detection integration (ML model v2) — Owner: ML + Backend (13 SP)
+3. Dark mode for mobile app (iOS + Android) — Owner: Mobile team (5 SP)
+4. Bulk invoice generation PDF — Owner: Backend + Frontend (8 SP)
+
+Bug Fixes:
+5. Fix Safari iOS checkout hang (PROD-1940) — 3 SP
+6. Fix timezone in scheduled reports (PROD-1918) — 2 SP
+
+Technical Debt:
+7. Migrate Redis 6 → 7 (breaking API changes) — Owner: Platform (5 SP)
+8. Upgrade Spring Boot 3.0 → 3.2 (security fixes) — Owner: Backend (8 SP)
+
+Total: 52 story points | Team velocity: 48 SP | Risk: MEDIUM (slightly above velocity)
+
+Deployment Strategy v4.3.0:
+- Multi-currency: Feature flag controlled (LaunchDarkly) — can roll back per customer
+- Fraud detection: Shadow mode first (runs in parallel, no blocking) for 1 week before full enable
+- Redis migration: Blue-green deployment with 4-hour dual-write period
+- Spring Boot: Canary deployment (10% → 25% → 50% → 100% over 2 hours)
+
+Release Risk Assessment:
+HIGH: Redis 6→7 migration — requires careful coordination, dedicated migration window
+MEDIUM: AI fraud model — false positive rate must be validated at scale
+LOW: UI features — fully reversible via feature flags
+
+Pre-release Gate Dates:
+Code Freeze: 11th November 5 PM
+QA Sign-off: 13th November
+Security Scan: 14th November
+Go/No-Go Decision: 15th November 4 PM
+Deployment: 15th November 6 PM
+
+Fish John
+Release Manager",1666,True,Release,Release
+261AAC9CD1349C9DC482351189A2A76F,[L1-TKT-1004] Kubernetes pod CrashLoopBackOff – Missing environment variable,Fish John,fish.john@devops-team.com,2024-10-14 04:14:00,"Hi,
+
+Ticket: L1-TKT-1004 | Priority: Medium | Raised by: Backend Team
+Environment: Staging (k8s-staging-cluster) | Component: Kubernetes
+
+Issue:
+Pod 'notification-service-6d8f9b' in namespace 'staging' stuck in CrashLoopBackOff.
+
+kubectl describe pod notification-service-6d8f9b output:
+Back-off restarting failed container
+Last Exit Code: 1
+
+kubectl logs notification-service-6d8f9b:
+Error: Environment variable 'SMTP_HOST' not found. Application cannot start.
+
+Root Cause:
+ConfigMap 'notification-config' was not updated when the new SMTP server was migrated from smtp.internal to smtp.acmecorp.com last week (Change Request CR-2024-112).
+The new env variable was added to production ConfigMap but missed in staging.
+
+Fix:
+kubectl edit configmap notification-config -n staging
+Added: SMTP_HOST=smtp.acmecorp.com
+
+kubectl rollout restart deployment notification-service -n staging
+Pod now Running. All 3 replicas healthy.
+
+Status: RESOLVED ✅ | Time to Resolve: 25 minutes
+
+Lesson Learned: ConfigMap changes must be applied to ALL environments simultaneously.
+Added to runbook: https://confluence.internal/devops/runbooks/configmap-sync
+
+Fish John
+L1 Support | Kubernetes Team",1176,False,L1,CICD
+BB6AFDCBB82F4A7FC2B002EE983BF8CE,[L1-TKT-1005] Nexus Repository unreachable – Dependency download failing in pipeline,Fish John,fish.john@devops-team.com,2024-10-11 00:17:00,"Hi Team,
+
+Ticket: L1-TKT-1005 | Priority: Medium | Raised by: All Dev Teams (multiple reporters)
+Environment: All CI Pipelines | Component: Nexus Repository Manager 3.x
+
+Issue:
+All Maven/Gradle builds failing since 09:15 AM with:
+Could not resolve com.acme:shared-utils:2.1.4
+Connection refused: nexus.internal:8081
+
+Impact: ALL pipelines blocked. ~15 active builds failing simultaneously.
+
+Investigation:
+ping nexus.internal → Request timeout (server not responding)
+SSH to nexus-server-01: Connection timed out
+
+Escalated to Infrastructure team: Server appears to be down.
+Infra response: nexus-server-01 ran out of disk space (100% utilisation on /data partition).
+Nexus auto-shutdown triggered when disk full.
+
+Immediate Fix by Infra (Vikram Nair):
+1. Deleted old blob store snapshots (freed 120GB)
+2. Restarted Nexus service: systemctl restart nexus
+3. Service online at 10:45 AM
+
+All pipelines resumed. 15 failed builds re-triggered manually.
+
+Long-term Fix:
+- Set up disk usage alert at 80% threshold (PagerDuty)
+- Scheduled weekly blob store cleanup cron job
+
+Status: RESOLVED ✅ | Downtime: 1.5 hours | Impact: High
+
+Fish John
+L1 DevOps Support",1152,True,L1,CICD
+9B1462696E1D71AEC694E656559A3CAC,[MAINT] Monthly Kubernetes Node Patch – OS Security Updates + Kernel Upgrade Oct 2024,Fish John,fish.john@devops-team.com,2024-10-09 05:02:00,"Hi Team,
+
+Maintenance Window: CR-2024-188 | Monthly Node Patching
+Date: Sunday 20th October 2024 | 1:00 AM – 5:00 AM IST
+Scope: All 12 EKS worker nodes — OS patches + kernel upgrade
+
+Patches Applied:
+- Kernel: 5.10.190 → 5.10.226 (CVE-2024-39480 kernel privilege escalation fix)
+- glibc: 2.31-13 → 2.31-15 (CVE-2024-2961 buffer overflow fix)
+- openssl: 3.0.2 → 3.0.15 (multiple CVE fixes including CVE-2024-45231)
+- containerd: 1.7.8 → 1.7.13 (CVE-2024-21626 container escape fix — CRITICAL)
+- AWS SSM Agent: 3.2.1630 → 3.3.24
+
+Patching Procedure (rolling — zero downtime):
+For each node:
+1. kubectl cordon <node> — prevent new pod scheduling
+2. kubectl drain <node> --ignore-daemonsets --delete-emptydir-data — move existing pods
+3. AWS SSM Run Command: patch + reboot
+4. Wait for node Ready status (avg 3 min 40 sec)
+5. kubectl uncordon <node> — return to service
+
+Results:
+Node 01/12: ✅ 4m12s | Node 02/12: ✅ 3m58s | Node 03/12: ✅ 4m05s
+Node 04/12: ✅ 3m44s | Node 05/12: ✅ 4m01s | Node 06/12: ⚠️ 8m12s (slow reboot — investigated, BIOS POST delay, normal)
+Node 07/12: ✅ 3m55s | Node 08/12: ✅ 4m10s | Node 09/12: ✅ 3m48s
+Node 10/12: ✅ 4m02s | Node 11/12: ✅ 3m59s | Node 12/12: ✅ 4m15s
+
+Total duration: 58 minutes | Zero pod disruption confirmed.
+containerd escape CVE-2024-21626 confirmed patched — critical security fix.
+
+Next maintenance: Sunday 17th November 2024.
+
+Fish John
+L2 Infrastructure Maintenance",1410,True,Maintenance,Maintenance
+9B7E38A5DE82F65AADEEC8B7DE6EAA1F,[L2-TKT-2001] ESCALATION – Jenkins shared library throwing ClassNotFoundException in all pipelines,Fish John,fish.john@devops-team.com,2024-10-07 00:55:00,"Hi Senior DevOps Team,
+
+Ticket: L2-TKT-2001 | Priority: High | Escalated from: L1-TKT-1008
+Environment: Production Jenkins | Component: Jenkins Shared Library (Groovy)
+
+Escalation Reason:
+L1 team unable to resolve after 4 hours. Issue affecting ALL 47 active pipelines.
+
+Error (from pipeline logs):
+java.lang.ClassNotFoundException: com.acme.pipeline.utils.DockerUtils
+    at groovy.lang.GroovyClassLoader.loadClass(GroovyClassLoader.java:693)
+    at org.jenkinsci.plugins.workflow.cps.CpsFlowExecution.loadClass
+
+Background:
+This started after a shared library update was pushed to GitLab branch 'main' at 11:30 PM last night by developer Kiran Desai. The commit updated DockerUtils.groovy — class signature changed, breaking all downstream pipeline imports.
+
+Root Cause Analysis (L2):
+1. Class 'DockerUtils' had method signature change: buildImage(String) → buildImage(String, Map)
+2. All Jenkinsfile scripts calling old signature: DockerUtils.buildImage(imageName)
+3. No backward compatibility maintained in library update
+4. No staging test of shared library before merge to main
+
+Immediate Fix Options:
+Option A: Revert shared library commit (git revert) — fastest, 10 min downtime
+Option B: Update all 47 Jenkinsfiles to new signature — 3-4 hours work
+Option C: Add overloaded method in DockerUtils to support both signatures — 30 min
+
+Recommendation: Option C (backward compatible fix)
+Implementing now. ETA: 30 minutes.
+
+Fish John
+L2 DevOps | Senior Pipeline Engineer",1475,True,L2,CICD
+78F73349BB4E6EEDACACE177E1FD2929,[UPGRADE] GitLab CE 16.3 → 16.8 – Security Patch + Feature Upgrade,Fish John,fish.john@devops-team.com,2024-10-06 08:38:00,"Hi DevOps Team,
+
+Change Request: CR-2024-167 | GitLab CE Upgrade
+From: GitLab 16.3.4  →  To: GitLab 16.8.1
+Reason: Security patches (2 critical CVEs) + performance improvements
+
+Critical CVEs Fixed in 16.8.1:
+CVE-2024-4835 (CVSS 8.8): XSS vulnerability in VS Code editor component
+CVE-2024-4024 (CVSS 9.6): Privilege escalation via SAML authentication bypass — CRITICAL
+
+Upgrade Notes (16.3 → 16.8 multi-step required):
+GitLab requires sequential upgrade through minor versions:
+16.3 → 16.4 → 16.5 → 16.6 → 16.7 → 16.8
+
+Each step: ~8 minutes. Total estimated: 60-75 minutes downtime.
+
+Execution Log (Saturday 26th Oct, 12 AM – 2 AM):
+00:00 – Maintenance page enabled on GitLab
+00:05 – Full backup: gitlab-backup create BACKUP=upgrade_20241026
+00:22 – Backup complete (34GB, stored S3 + local)
+00:25 – 16.3 → 16.4: apt-get install gitlab-ce=16.4.7-ce.0 — ✅ 8 min
+00:35 – 16.4 → 16.5: ✅ 7 min (DB migration: added index on merge_request_metrics)
+00:44 – 16.5 → 16.6: ✅ 9 min
+00:55 – 16.6 → 16.7: ✅ 8 min
+01:05 – 16.7 → 16.8.1: ✅ 11 min (background migration: 2.1M rows in ci_builds — ran async)
+01:18 – Health check: gitlab-ctl status — all services running ✅
+01:22 – Maintenance page disabled
+01:30 – Smoke test: Git push, pull, CI trigger, merge request — all functional ✅
+
+Actual downtime: 82 minutes (vs 75 min estimated — DB migration larger than expected)
+
+Post-Upgrade: SAML vulnerability confirmed patched. Security team notified.
+
+Fish John
+L2 GitLab Administrator",1471,True,Upgrade,Upgrade Tools
+99D4751A8D5C483D72E734E427D80E99,[L2-TKT-2002] ArgoCD sync failing – Helm chart values mismatch between Git and cluster,Fish John,fish.john@devops-team.com,2024-10-03 01:48:00,"Hi Team,
+
+Ticket: L2-TKT-2002 | Priority: High | Component: ArgoCD + Helm
+Environment: Production Kubernetes (prod-cluster-01)
+
+Issue:
+ArgoCD application 'payments-app' stuck in OutOfSync state for 36 hours despite manual sync attempts.
+
+ArgoCD Sync Error:
+ComparisonError: rpc error: code = Unknown desc = Helm template
+failed: Error: values don't meet the specifications of the schema in values.schema.json:
+  - (root): Additional property 'replicaOverride' is not allowed
+
+Investigation:
+1. Git repo has values.schema.json with strict JSON schema validation (added in last Helm chart version bump 3.1.0 → 3.2.0)
+2. Our values-production.yaml was passing 'replicaOverride' key — valid in 3.1.0 but removed from schema in 3.2.0
+3. ArgoCD upgraded its Helm version from 3.10 to 3.13 last week which now enforces schema validation strictly
+
+Root Cause: Helm chart version upgrade introduced breaking schema change. Our production values file was not updated.
+
+Fix:
+1. Removed 'replicaOverride' from values-production.yaml (functionality moved to autoscaling.enabled: true)
+2. Validated locally: helm template --values values-production.yaml . — no errors
+3. ArgoCD sync succeeded. All 6 pods healthy.
+
+Preventive Action:
+Added helm lint step in the values-file PR pipeline to catch schema violations before merge.
+
+Status: RESOLVED ✅
+
+Fish John
+L2 GitOps / ArgoCD Engineer",1371,False,L2,CICD
+1A4088E8BCB4BB34DA62EB6801A3F559,[MAINT] Jenkins Disk Cleanup – Build Artifacts Purge + Log Rotation Oct 2024,Fish John,fish.john@devops-team.com,2024-10-01 06:13:00,"Hi Team,
+
+Maintenance Task: MAINT-2024-077
+Date: 21st October 2024
+Task: Jenkins build artifact cleanup and disk space reclamation
+
+Background:
+Jenkins master disk usage: 847GB / 1TB (85% full)
+Alert triggered at 80% threshold (PagerDuty: ALERT-4521)
+Without cleanup, Jenkins will hit disk capacity within 5 days.
+
+Analysis:
+du -sh /var/lib/jenkins/jobs/*/builds/ | sort -h | tail -20
+Top space consumers:
+1. backend-api: 124GB (builds retained for 365 days — excessive)
+2. data-pipeline: 98GB (artifact archives never cleaned)
+3. mobile-app: 76GB (iOS build artifacts: ~500MB each)
+4. integration-tests: 67GB (test reports + screenshots accumulating since 2022)
+
+Cleanup Actions:
+1. Updated job retention policies:
+   - Max builds to keep: 30 (was: unlimited or 365 days)
+   - Max artifact size: 500MB per build
+   - Discard old builds: after 30 days
+
+2. Ran Jenkins built-in cleanup:
+   jenkins-cli.jar build ""cleanup-old-builds"" — freed 312GB immediately
+
+3. Archived 2022 build logs to S3 (compliance: keep 2 years):
+   aws s3 sync /archive/jenkins-2022/ s3://acme-jenkins-archive/2022/
+
+4. Configured log rotation: /etc/logrotate.d/jenkins
+   rotate 7 | compress | maxsize 100M
+
+Result:
+Before: 847GB (85%)
+After: 421GB (42%)
+Freed: 426GB ✅
+
+Disk alert cleared. Next full cleanup scheduled: January 2025.
+
+Fish John
+L1 Jenkins Maintenance",1343,False,Maintenance,Maintenance
+4D47B20E0DA8CC3F980A8713E6C9A5B8,[MAINT] SSL Certificate Renewal – 14 Services + Wildcard Cert Rotation,Fish John,fish.john@devops-team.com,2024-09-29 23:01:00,"Hi Team,
+
+Maintenance: MAINT-2024-083 | SSL Certificate Renewal
+Urgency: HIGH — 3 certificates expiring within 14 days
+
+Certificates Expiring (from cert-manager dashboard):
+1. *.acmecorp.com (wildcard) — expires 5th November 2024 (15 days) ⚠️
+2. api.acmecorp.com — expires 3rd November 2024 (13 days) ⚠️
+3. jenkins.internal — expires 1st November 2024 (11 days) 🔴
+
+Total certificates managed: 47 (Let's Encrypt via cert-manager in Kubernetes)
+
+Actions Taken:
+
+1. Wildcard Certificate (manual — Let's Encrypt DNS challenge):
+   certbot certonly --dns-cloudflare --dns-cloudflare-credentials ~/.secrets/cloudflare.ini -d *.acmecorp.com
+   New cert valid until: 5th February 2025
+   Deployed to: 14 nginx ingress controllers, AWS ALB, API Gateway
+
+2. api.acmecorp.com (cert-manager auto-renewal triggered manually):
+   kubectl annotate cert api-acmecorp-tls cert-manager.io/renew-before=720h
+   kubectl describe certificate api-acmecorp-tls — Status: Ready, renewed ✅
+
+3. jenkins.internal (self-signed, internal CA):
+   openssl req -x509 -newkey rsa:4096 -keyout jenkins.key -out jenkins.crt -days 365
+   Imported to Jenkins keystore + updated Nginx reverse proxy config
+   Jenkins restarted. Certificate valid until: 21st October 2025 ✅
+
+4. Automated monitoring added:
+   Prometheus blackbox exporter: alerts 30 days before expiry (was 14 days — too short)
+
+Post-Renewal Verification:
+All 47 certificates: Valid ✅ | No SSL errors in application logs ✅
+
+Fish John
+L2 DevOps | TLS/PKI Management",1491,True,Maintenance,Maintenance
+F9A1DC7DF77F8AAF327300F45231D6C8,[UPGRADE] Jenkins LTS Upgrade: 2.414.3 → 2.426.1 – Full Upgrade Report,Fish John,fish.john@devops-team.com,2024-09-29 07:31:00,"Hi Team,
+
+Change Request: CR-2024-178 | Jenkins LTS Upgrade
+From: Jenkins 2.414.3  →  To: Jenkins 2.426.1
+Upgrade Window: Saturday 19th Oct, 11 PM – 2 AM IST
+Downtime: 45 minutes (planned)
+
+Pre-Upgrade Actions:
+✅ Full Jenkins home backup: /var/lib/jenkins → s3://acme-backups/jenkins/2024-10-19/
+✅ Plugin compatibility matrix verified against 2.426.1 (all 87 plugins compatible)
+✅ 3 plugins flagged for upgrade: git:5.2.0, pipeline-groovy-lib:700.v796, kubernetes:4111.v54
+✅ Staging upgrade completed successfully: 18th Oct (ran 24h, all pipelines tested)
+✅ Rollback plan documented: restore from S3 backup, ETA 15 min
+
+Upgrade Execution:
+23:00 – Blocked new builds (quietDown mode)
+23:08 – Last running build completed
+23:10 – Stopped Jenkins service: systemctl stop jenkins
+23:12 – Backup verified complete (S3 upload confirmed)
+23:15 – Updated Jenkins repo: yum update jenkins-2.426.1
+23:28 – Started Jenkins: systemctl start jenkins
+23:35 – Jenkins UI accessible. All 47 jobs visible.
+23:40 – Plugin updates applied (3 plugins upgraded)
+23:55 – Smoke test: triggered 5 test pipelines — all passed ✅
+00:05 – Quietdown mode released. Normal operations resumed.
+
+Post-Upgrade Verification (24h):
+- All 47 pipelines executed at least once: PASS ✅
+- No plugin compatibility errors in logs ✅
+- Build times: no regression (avg 4m 12s vs 4m 08s previously — within tolerance) ✅
+- Security fixes in 2.426.1: 3 CVEs patched (CVE-2024-23897, CVE-2024-23898, CVE-2024-23899)
+
+Upgrade Status: SUCCESS ✅ | Actual downtime: 42 minutes
+
+Fish John
+L2 Jenkins Administrator",1559,True,Upgrade,Upgrade Tools
+AEB89D8C292AA7E2E3A18D679138EB4B,[L2-TKT-2003] Terraform state file corruption – Plan shows unexpected resource destruction,Fish John,fish.john@devops-team.com,2024-09-28 23:23:00,"URGENT – L2-TKT-2003 | Priority: Critical | Component: Terraform / AWS
+
+Team,
+
+STOP ALL TERRAFORM APPLIES IMMEDIATELY.
+
+Situation:
+During routine infrastructure change for Project Atlas (adding 2 new EC2 instances), terraform plan showed:
+- 14 resources to add ✅ (expected)
+- 0 to change ✅ (expected)
+- 89 resources to destroy ❌ (UNEXPECTED — this includes production RDS, EKS cluster, VPCs)
+
+This would destroy our entire production AWS infrastructure if applied.
+
+Investigation:
+1. Terraform state file (terraform.tfstate) last modified: 2 hours ago by automated backup script
+2. Backup script incorrectly wrote a partial state file over the main state file
+3. Terraform workspace: prod — state now shows only 14 of 103 expected resources
+
+Remote State:
+Confirmed S3 backend has versioned state files. Last good state: S3://acme-tf-state/prod/terraform.tfstate (version: 47, timestamp: 6 hours ago)
+
+Recovery Steps:
+1. aws s3api get-object --bucket acme-tf-state --key prod/terraform.tfstate --version-id versionID terraform.tfstate.good
+2. terraform state replace with recovered file
+3. terraform plan — now shows 0 destroy. ✅
+
+All clear to resume Terraform operations.
+
+Immediate Actions:
+- Fixed backup script (was using > instead of cp for state file)
+- Added S3 versioning alert if state file size drops >50%
+- Added mandatory plan review gate before apply for destroy count > 0
+
+Fish John
+L2 Infrastructure / Terraform Lead",1431,True,L2,CICD
+B1A515EC7FE31D6E5657F6C879F90DFE,[L2-TKT-2004] Prometheus alerting rules not firing – AlertManager misconfiguration,Fish John,fish.john@devops-team.com,2024-09-26 03:08:00,"Hi Monitoring Team,
+
+Ticket: L2-TKT-2004 | Priority: High | Component: Prometheus + AlertManager
+Environment: Production Monitoring Stack
+
+Problem:
+Production incident last Friday (P1 – database connection pool exhaustion) was NOT alerted by our monitoring.
+Alert rule 'DatabaseConnectionPoolHigh' should have fired when pool utilisation exceeded 85%.
+Manual monitoring caught the issue 2 hours late, causing service degradation.
+
+L2 Investigation:
+1. Checked Prometheus UI → Alert Rules: 'DatabaseConnectionPoolHigh' showing state: INACTIVE
+2. Rule definition in prometheus-rules.yaml:
+   expr: db_connection_pool_used / db_connection_pool_max > 0.85
+   
+3. Checked metric name: actual metric in Prometheus is 'database_pool_used_connections' NOT 'db_connection_pool_used'
+   Metric name changed when we upgraded the DB exporter from v0.11 to v0.14 last month.
+   
+4. AlertManager routing config had a duplicate receiver block causing silencing of 'database' category alerts.
+
+Fixes Applied:
+1. Updated prometheus-rules.yaml with correct metric names
+2. Fixed AlertManager routing — removed duplicate receiver
+3. Added Prometheus rule unit tests (promtool test rules)
+4. Tested alert firing with: promtool query instant http://prometheus:9090 'database_pool_used_connections'
+
+Alert now firing correctly in test. Deployed to production.
+
+Post-Mortem scheduled: Monday 10 AM.
+
+Fish John
+L2 Observability Engineer",1412,False,L2,Maintenance
+4E4BFC2696A06D9077A43792A06B631F,[L3-TKT-3001] CRITICAL – Kubernetes cluster node NotReady causing production pod evictions,Fish John,fish.john@devops-team.com,2024-09-20 22:47:00,"P0 INCIDENT – L3-TKT-3001 | Component: Kubernetes Cluster / kubelet
+Environment: Production EKS Cluster (us-east-1) | Escalated from L2-TKT-2009
+
+INCIDENT ACTIVE – Started 14:22 IST
+
+Situation:
+3 of 12 worker nodes in prod EKS cluster showing NotReady status.
+120 pods evicted and rescheduled. Payment service and order service impacted.
+Customer-facing error rate: 12% (SLO breach – threshold 0.1%)
+
+kubectl get nodes:
+prod-node-07   NotReady   worker   2d    v1.28.3
+prod-node-09   NotReady   worker   2d    v1.28.3
+prod-node-11   NotReady   worker   2d    v1.28.3
+
+Deep Investigation (L3):
+1. journalctl -u kubelet on affected nodes:
+   ""Failed to get node info: nodes 'prod-node-07' not found""
+   ""PLEG is not healthy: pleg was last seen active 3m45s ago; threshold is 3m""
+   PLEG = Pod Lifecycle Event Generator — kubelet's heartbeat mechanism
+
+2. Root Cause: containerd runtime on nodes entered degraded state after OOM killer
+   triggered at 14:19 IST killing containerd-shim processes.
+   
+   OOM trigger: Node memory pressure due to Datadog agent memory leak (v7.47.0 — known CVE)
+   Datadog agent consuming 4.2GB RAM per node (expected: 250MB)
+   
+3. containerd degraded → kubelet PLEG unhealthy → node NotReady → mass pod eviction
+
+Remediation:
+1. Cordoned affected nodes: kubectl cordon prod-node-07/09/11
+2. Drained gracefully: kubectl drain --ignore-daemonsets --delete-emptydir-data
+3. Restarted containerd: systemctl restart containerd
+4. Restarted kubelet: systemctl restart kubelet
+5. Nodes back Ready within 4 minutes
+6. Downgraded Datadog agent to v7.46.0 on all nodes (v7.47.0 has memory leak bug — vendor confirmed)
+7. Uncordoned nodes. All pods rescheduled.
+
+Total Impact: 23 minutes degradation. Error rate normalised at 14:45 IST.
+
+RCA Report will follow within 24 hours.
+
+Fish John
+L3 Kubernetes Platform Engineer",1839,True,L3,Maintenance
+D453187B50E4C9559184E070B4A16C2F,[L3-TKT-3002] Deep Dive – GitHub Actions OIDC auth failing intermittently with AWS (race condition),Fish John,fish.john@devops-team.com,2024-09-16 01:18:00,"Hi Platform Engineering,
+
+Ticket: L3-TKT-3002 | Priority: High | Component: GitHub Actions + AWS OIDC
+Environment: Production CI/CD | Duration: Intermittent for 3 weeks
+
+Background:
+GitHub Actions workflows using OIDC (OpenID Connect) to assume AWS IAM roles are failing intermittently.
+Failure rate: ~8% of runs. Retrying the job usually succeeds.
+L1 and L2 teams marked as 'flaky network' and closed 3 times. Escalated to L3 for root cause.
+
+Error:
+Error: Could not assume role with OIDC: Not authorized to perform sts:AssumeRoleWithWebIdentity
+Status Code: 403
+
+L3 Deep Investigation:
+1. Collected 200 failure timestamps over 3 weeks.
+2. Correlated with GitHub's OIDC token issuance service status — no outages found.
+3. Examined JWT tokens in failed runs (decoded from GitHub Actions debug logs):
+   Failed tokens: 'iat' (issued-at) timestamp was AHEAD of AWS STS server time by 6-10 seconds
+   AWS STS rejects tokens where 'iat' > server_time (clock skew protection)
+   
+4. Root Cause: GitHub Actions runner pool has 3 runners with NTP drift.
+   Two specific runner IPs (10.4.5.23, 10.4.5.31) — self-hosted runners — clock drifted +8 seconds
+   GitHub-hosted runners unaffected.
+   
+5. AWS IAM role trust policy had no clock skew tolerance configured.
+
+Fix:
+1. Synced NTP on self-hosted runners: chronyc makestep
+2. Added AWS IAM role condition: ""aws:TokenIssueTime"" with 30-second tolerance window
+3. Configured chrony with redundant NTP servers (was using single internal NTP that also drifted)
+4. Added monitoring: alert if NTP offset > 2 seconds on any runner
+
+Failure rate post-fix: 0% over 48 hours (200+ runs tested)
+
+This was a classic distributed systems clock skew issue — rare but completely reproducible once understood.
+
+Fish John
+L3 Platform Security / CI Engineer",1783,True,L3,CICD
+DD0A14F560403DB43219CC649BCD8DBB,[UPGRADE] Kubernetes 1.27 → 1.28 Control Plane and Node Upgrade Plan,Fish John,fish.john@devops-team.com,2024-09-13 05:22:00,"Hi Platform Team + Management,
+
+Change Request: CR-2024-195 | Kubernetes Version Upgrade
+From: EKS 1.27 (EOL: November 2024)  →  To: EKS 1.28
+Urgency: MANDATORY — EKS 1.27 reaches end of support 26th November 2024 (security patches stop)
+
+Breaking Changes in K8s 1.28 (impact assessment):
+1. seccomp profile enforcement: containers without seccomp profile will fail — IMPACT: 12 deployments need annotation added
+2. PodDisruptionBudget v1beta1 API removed: must migrate to v1 — IMPACT: 3 Helm charts use deprecated API
+3. FlowSchema and PriorityLevelConfiguration v1beta2 removed — IMPACT: no impact (we use v1)
+
+Pre-Upgrade Tasks (2 weeks before):
+[ ] Update all PodDisruptionBudget from v1beta1 to v1 (Owner: Platform team, Due: 1st Nov)
+[ ] Add seccomp profiles to 12 affected deployments (Owner: App teams, Due: 3rd Nov)
+[ ] Test Helm charts in 1.28 cluster in lower environment (Owner: Fish John, Due: 5th Nov)
+[ ] Upgrade AWS VPC CNI plugin: v1.13 → v1.16 (1.28 compatible)
+[ ] Upgrade CoreDNS: 1.10.0 → 1.11.1
+[ ] Upgrade kube-proxy to match control plane version
+
+Upgrade Order:
+Day 1 (10th Nov): Control plane upgrade (AWS managed, ~10 min, zero downtime)
+Day 2 (11th Nov): Node group upgrade — rolling (1 node at a time, cordon+drain+replace)
+  - node-group-general: 6 nodes (2h estimated)
+  - node-group-compute: 4 nodes (1.5h estimated)
+  - node-group-memory: 2 nodes (45 min estimated)
+
+Rollback: Not possible after control plane upgrade — hence staging validation is critical.
+
+Requesting approval to proceed.
+
+Fish John
+L4 Platform Architect",1556,False,Upgrade,Upgrade Tools
+9485F608E8E906E247E01DD47608FB09,[L3-TKT-3003] Memory leak in custom Jenkins agent causing OOM after 72h – JVM heap analysis,Fish John,fish.john@devops-team.com,2024-09-10 23:39:00,"Hi Engineering Leadership,
+
+Ticket: L3-TKT-3003 | Priority: High | Component: Jenkins Custom Build Agent (Java)
+
+Problem:
+Custom Jenkins build agent (acme-build-agent:v2.3) crashes every 72-80 hours with:
+java.lang.OutOfMemoryError: Java heap space
+
+The agent runs as a containerised JVM process. After crash, all in-progress builds fail.
+This has occurred 4 times in the past 3 weeks.
+
+L3 JVM Heap Analysis:
+1. Enabled JVM heap dump on OOM: -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps/
+2. Analysed heap dump with Eclipse MAT (Memory Analyser Tool)
+   Retained Heap: 3.8GB (JVM max: 4GB)
+   
+3. Dominator tree showed:
+   - org.apache.groovy.parser.antlr4.GroovyLangParser retained 2.1GB
+   - 847,293 instances of SyntaxErrorMessage objects never garbage collected
+   
+4. Root Cause: Groovy parser in Jenkins plugin 'pipeline-groovy-lib:689.vf91' has a known memory leak
+   when parsing Groovy scripts with syntax errors — SyntaxErrorMessage objects accumulate in
+   a static cache that is never cleared.
+   
+   Bug reference: JENKINS-71234 (known issue, fixed in plugin version 700.v796)
+
+Fix:
+1. Upgraded pipeline-groovy-lib plugin: 689.vf91 → 700.v796
+2. Set JVM GC tuning: -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=16m
+3. Added liveness probe to restart agent if heap > 80%: livenessProbe.exec: jstat check
+4. 96 hours post-fix: heap stable at 800MB. No OOM events.
+
+Full heap analysis report attached: heap-analysis-L3-3003.pdf
+
+Fish John
+L3 JVM Performance Engineer",1499,True,L3,Maintenance
+C4E5924152D10FB77233F2B0C1E174A0,[L4-TKT-4001] VENDOR ESCALATION – EKS Control Plane API server latency spike affecting all deployments,Fish John,fish.john@devops-team.com,2024-09-06 00:17:00,"Hi AWS Enterprise Support + Architecture Team,
+
+Ticket: L4-TKT-4001 | Priority: Critical | Component: AWS EKS Control Plane
+Case: AWS Support Case #1234567890
+
+Issue:
+AWS EKS control plane API server experiencing intermittent latency spikes for the past 5 days.
+kubectl commands timing out: ""Error from server: etcd cluster is unavailable"" (intermittent)
+API server p99 latency: 12,000ms (normal: <100ms)
+
+All deployments, scaling events and helm upgrades are affected during spike windows (15-20 min bursts, 3-4x daily).
+
+Our Investigation (exhausted all internal options):
+1. Worker nodes healthy — issue isolated to control plane (AWS managed)
+2. API audit logs show 50,000+ LIST requests/second from Flux CD controllers during spike windows
+3. Flux CD performing full resource reconciliation loop every 60 seconds across 340 CRDs
+4. This LIST storm overwhelming etcd under the control plane
+
+AWS Response (Case #1234567890):
+AWS confirmed: EKS control plane etcd has a known throttling issue when LIST request rate
+exceeds 40,000/s from a single cluster. Fix deployed in EKS 1.29 patch (not yet available for our 1.28).
+
+Architectural Decision Required (L4):
+Option A: Upgrade EKS from 1.28 → 1.29 immediately (includes etcd fix)
+           Risk: In-place control plane upgrade, 30-min maintenance window
+Option B: Configure Flux CD reconciliation interval from 60s → 300s to reduce LIST pressure
+           Risk: 5-minute delay in GitOps sync (acceptable?)
+Option C: Shard Flux CD into 2 controllers across separate namespaces
+           Risk: Operational complexity increase
+
+Recommendation: Option B immediately + Option A scheduled for next maintenance window.
+
+Requires CTO approval for EKS version upgrade decision.
+
+Fish John
+L4 Platform Architect | AWS Certified Solutions Architect",1794,True,L4,Maintenance
+45AF1843DDDDFC80463666BC57DF79AD,[L4-TKT-4002] Architectural Review – HashiCorp Vault secret sprawl causing pipeline bottleneck at scale,Fish John,fish.john@devops-team.com,2024-09-01 01:40:00,"Hi Architecture Board,
+
+Ticket: L4-TKT-4002 | Priority: High | Component: HashiCorp Vault + CI/CD Secret Management
+
+Context:
+We now have 340 microservices, each with 15-30 secrets in Vault.
+Total: ~8,500 individual secrets managed in Vault.
+CI/CD pipelines retrieve secrets at build time using Vault Agent Injector.
+
+Problem at Scale:
+1. Pipeline secret retrieval latency increased from 800ms → 8,400ms over 6 months
+2. Vault audit log: 45,000 secret lease requests/hour during peak CI time (9-11 AM)
+3. Vault cluster CPU: 85-90% during peak (3-node cluster, each 8 vCPU)
+4. Vault token renewal storms: 340 services renewing tokens simultaneously on the hour
+
+Root Architecture Issue:
+Current design: Every pipeline run does a full Vault login → token fetch → secret read for ALL secrets
+This is a Vault anti-pattern at this scale.
+
+L4 Architectural Solutions Considered:
+
+Option 1: Vault Namespace Sharding
+- Split into 4 Vault namespaces by domain (payments, orders, auth, infra)
+- Reduces per-namespace load by 75%
+- Effort: 3 sprints
+
+Option 2: Secret Caching with External Secrets Operator
+- ESO syncs Vault secrets to Kubernetes Secrets (cached in etcd)
+- Pipelines read from K8s Secrets — no live Vault calls during builds
+- Reduces Vault load by 90%
+- Effort: 2 sprints (recommended)
+
+Option 3: Vault Enterprise Performance Replication
+- Adds read replicas to distribute load
+- Cost: $85,000/year Vault Enterprise licence
+- Effort: 1 sprint
+
+Recommendation: Option 2 (External Secrets Operator) — best cost/performance ratio.
+Detailed migration plan attached: vault-eso-migration-plan-v2.pdf
+
+Decision needed from: CTO + Security Architect
+
+Fish John
+L4 Secrets Management Architect",1691,False,L4,CICD
+A00DC1D13495CC121629B9E1B0387D7D,[INSTALL] Grafana Loki + Promtail Installation – Centralised Log Aggregation Setup,Fish John,fish.john@devops-team.com,2024-08-27 08:43:00,"Hi Team,
+
+Installation Request: INST-2024-041
+Tool: Grafana Loki v2.9.3 + Promtail v2.9.3
+Purpose: Replace ELK stack for log aggregation (cost saving: $4,200/month)
+Target: Production Kubernetes cluster + all 12 application servers
+
+Pre-Installation Checklist:
+✅ Capacity planning: Loki needs 500GB object storage (S3 bucket provisioned: s3://acme-loki-logs)
+✅ Network: Ports 3100 (Loki HTTP), 9095 (Loki gRPC) opened in security groups
+✅ Helm chart: grafana/loki-distributed v0.71.3 validated in staging
+✅ Change Request approved: CR-2024-201 (approved by Change Advisory Board)
+✅ Rollback plan: ELK stack will remain active in parallel for 2 weeks
+
+Installation Steps Executed:
+
+1. Loki Installation (Kubernetes):
+   helm repo add grafana https://grafana.github.io/helm-charts
+   helm install loki grafana/loki-distributed -n monitoring -f loki-values-prod.yaml
+   Pods: 3/3 Running ✅
+
+2. Promtail DaemonSet (log shipper on all nodes):
+   helm install promtail grafana/promtail -n monitoring -f promtail-values-prod.yaml
+   DaemonSet: 12/12 pods running ✅
+
+3. Grafana Data Source:
+   Added Loki as data source in Grafana (http://loki-gateway.monitoring:80)
+   Verified log ingestion: 45,000 log lines/minute flowing ✅
+
+4. Application server Promtail agents installed via Ansible:
+   ansible-playbook -i inventory/production install-promtail.yml
+   All 12 servers: SUCCESS ✅
+
+5. Log retention policy configured: 30 days hot, 90 days S3 archive
+
+Post-Installation Validation:
+- All application logs visible in Grafana Explore ✅
+- Loki query latency < 2s for last 24h logs ✅
+- Alert rules migrated from ElastAlert to Loki ruler ✅
+
+ELK decommission scheduled: 15th November 2024 (after 2-week parallel run)
+
+Fish John
+DevOps Engineer | Observability Team",1752,True,Installation,New Tools Installation
+149CF2691365638DDD5220BDFE75EE03,[INSTALL] Trivy + Trivy Operator – Container Security Scanning in Kubernetes,Fish John,fish.john@devops-team.com,2024-08-22 08:33:00,"Hi Security & DevOps Team,
+
+Installation Request: INST-2024-048
+Tool: Trivy v0.47.0 + Trivy Operator v0.18.0
+Purpose: Automated container image vulnerability scanning in CI pipeline and Kubernetes cluster
+Compliance: SOC2 Type II requirement — all container images must be scanned before deployment
+
+Installation Summary:
+
+Phase 1 – Trivy CLI in Jenkins Pipeline:
+Added Trivy scanning step to all Jenkins pipelines:
+stage('Security Scan') {
+  sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_NAME}:${BUILD_NUMBER}'
+}
+Configured: Builds fail on HIGH or CRITICAL CVEs with no exception.
+Initial scan results: 14 images had HIGH CVEs — dev teams notified.
+
+Phase 2 – Trivy Operator in Kubernetes (continuous scanning):
+kubectl apply -f https://raw.githubusercontent.com/aquasecurity/trivy-operator/v0.18.0/deploy/static/trivy-operator.yaml
+
+Operator installed in namespace 'trivy-system'
+CRDs created: VulnerabilityReport, ConfigAuditReport, ExposedSecretReport, RbacAssessmentReport
+
+First scan completed in 45 minutes across all 340 pods.
+Results dashboard created in Grafana using Trivy Operator metrics.
+
+Scan Results Summary (first scan):
+- Total images scanned: 156
+- CRITICAL CVEs: 23 (across 8 images) — tickets raised: L2-TKT-2015 to 2023
+- HIGH CVEs: 187 (across 34 images) — sprint tickets created
+- MEDIUM/LOW: 1,204 — logged, no immediate action
+
+Integration: Trivy reports posted to Jira Security project automatically via webhook.
+
+Fish John
+DevOps Security Engineer",1492,True,Installation,New Tools Installation
+6CD2DD5B079C6139CAE1544413C57320,[INSTALL] Atlantis – Terraform Pull Request Automation Setup,Fish John,fish.john@devops-team.com,2024-08-17 03:01:00,"Hi Platform Team,
+
+Installation Request: INST-2024-052
+Tool: Atlantis v0.26.0
+Purpose: Automate Terraform plan/apply via GitHub Pull Requests
+Benefit: No more manual terraform apply from laptops — all infra changes via PR workflow with audit trail
+
+Architecture:
+Atlantis server deployed as Kubernetes Deployment in 'atlantis' namespace.
+Webhook configured in all 8 Terraform GitHub repositories.
+
+Installation:
+
+1. Atlantis Deployment (Kubernetes):
+   helm install atlantis runatlantis/atlantis -n atlantis -f atlantis-values.yaml
+   Key configs in atlantis-values.yaml:
+   - orgAllowlist: github.com/acme-corp/*
+   - requireApproval: true
+   - requireMergeable: true
+   - workflowMode: per-dir
+
+2. GitHub Webhook (all 8 repos):
+   Events: pull_request, issue_comment
+   Secret: stored in Kubernetes secret (not in YAML)
+
+3. AWS IAM Role for Atlantis:
+   Created IAM role 'atlantis-terraform-role' with least privilege
+   IRSA configured (IAM Roles for Service Accounts)
+
+Workflow Now Live:
+Developer opens PR → Atlantis comments: terraform plan output automatically
+Reviewer approves PR → Comments 'atlantis apply' → Terraform applies automatically
+Full audit trail in GitHub PR comments.
+
+First week results:
+- 34 Terraform PRs processed automatically
+- 0 manual terraform apply commands (verified via AWS CloudTrail)
+- 2 dangerous destroys caught in plan review before apply
+
+Fish John
+L3 Infrastructure Automation",1418,True,Installation,New Tools Installation

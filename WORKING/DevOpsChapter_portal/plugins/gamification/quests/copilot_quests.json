@@ -1,0 +1,14 @@
+{
+    "quest_lines": [
+        {
+            "id": "copilot_onboarding",
+            "name": "GitHub Copilot Mastery",
+            "description": "Become a Copilot power user!",
+            "milestones": [
+                {"id": 1, "name": "First Suggestion", "description": "Accept your first Copilot suggestion", "points": 10},
+                {"id": 2, "name": "5 Suggestions", "description": "Accept 5 Copilot suggestions", "points": 20},
+                {"id": 3, "name": "First Bug Fix", "description": "Fix a bug using Copilot", "points": 30}
+            ]
+        }
+    ]
+}

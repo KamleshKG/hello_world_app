@@ -1,0 +1,5 @@
+/reviewPR
+/postComments
+/jiraReview
+/debugPR
+/configure

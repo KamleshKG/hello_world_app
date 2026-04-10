@@ -1,0 +1,93 @@
+{
+  "name": "bitbucket-pr-copilot",
+  "displayName": "Bitbucket PR Copilot PoC",
+  "description": "Post Copilot/chat review suggestions to Bitbucket PRs (manual paste & clipboard modes)",
+  "version": "0.0.10",
+  "publisher": "kk",
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:bitbucketPRCopilot.quickPost",
+    "onCommand:bitbucketPRCopilot.postBatchForOpenFiles", 
+    "onCommand:bitbucketPRCopilot.batchPostFromClipboard",
+    "onCommand:bitbucketPRCopilot.testGit",
+    "onCommand:bitbucketPRCopilot.clearApiToken",
+    "onCommand:bitbucketPRCopilot.showEnvHelp",
+    "onCommand:bitbucketPRCopilot.showLog",
+    "onCommand:bitbucketPRCopilot.debugEnv",
+    "onCommand:bitbucketPRCopilot.debugAuth"
+  ],
+
+  "contributes": {
+    "commands": [
+      { "command": "bitbucketPRCopilot.quickPost", "title": "Bitbucket PR Copilot: Quick Post (Active File • manual paste)" },
+      { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "title": "Bitbucket PR Copilot: Batch Post (Select Open Files • manual paste)" },
+      { "command": "bitbucketPRCopilot.batchPostFromClipboard", "title": "Bitbucket PR Copilot: Batch Post from Clipboard (Select Open Files, fallback → all files if no matches)" },
+      { "command": "bitbucketPRCopilot.testGit", "title": "Bitbucket PR Copilot: Test Git" },
+      { "command": "bitbucketPRCopilot.clearApiToken", "title": "Bitbucket PR Copilot: Clear Bitbucket API Token (SecretStorage)" },
+      { "command": "bitbucketPRCopilot.showEnvHelp", "title": "Bitbucket PR Copilot: Show Enterprise Env Setup Help" },
+      { "command": "bitbucketPRCopilot.showLog", "title": "Bitbucket PR Copilot: Show Log" },
+      { "command": "bitbucketPRCopilot.debugEnv", "title": "Bitbucket PR Copilot: Debug Environment Variables" },
+      { "command": "bitbucketPRCopilot.debugAuth", "title": "Bitbucket PR Copilot: Debug Authentication" },
+      { "command": "bitbucketPRCopilot.forceResetAuth",  "title": "Bitbucket PR Copilot: Force Reset Credentials"},
+      { "command": "bitbucketPRCopilot.debugConfig",  "title": "Bitbucket PR Copilot: Debug Configuration"}
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Bitbucket PR Copilot Settings",
+      "properties": {
+        "bitbucketPRCopilot.workspace": {
+          "type": "string",
+          "default": "myworkspace_poc",
+          "description": "Bitbucket workspace ID/slug"
+        },
+        "bitbucketPRCopilot.repo": {
+          "type": "string", 
+          "default": "myrepo_poc",
+          "description": "Bitbucket repo slug"
+        },
+        "bitbucketPRCopilot.baseBranch": {
+          "type": "string",
+          "default": "main",
+          "description": "Destination branch for PRs (display only in this PoC)"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        { "command": "bitbucketPRCopilot.quickPost", "group": "navigation@9", "when": "editorTextFocus" },
+        { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "group": "navigation@9" },
+        { "command": "bitbucketPRCopilot.batchPostFromClipboard", "group": "navigation@9" }
+      ],
+      "editor/title": [
+        { "command": "bitbucketPRCopilot.quickPost", "group": "navigation@9", "when": "editorTextFocus" }
+      ]
+    },
+    "keybindings": [
+      { "command": "bitbucketPRCopilot.quickPost", "key": "ctrl+alt+p", "mac": "cmd+alt+p", "when": "editorTextFocus" },
+      { "command": "bitbucketPRCopilot.postBatchForOpenFiles", "key": "ctrl+alt+b", "mac": "cmd+alt+b" },
+      { "command": "bitbucketPRCopilot.batchPostFromClipboard", "key": "ctrl+alt+shift+b", "mac": "cmd+alt+shift+b" }
+    ]
+  },
+
+  "categories": ["Other"],
+  "keywords": ["bitbucket", "pull-requests", "copilot", "code-review"],
+
+  "scripts": {
+    "package": "vsce package"
+  },
+
+  "dependencies": {
+    "simple-git": "^3.19.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.0.0"
+  },
+
+  "repository": {
+    "type": "git", 
+    "url": "https://bitbucket.org/myworkspace_poc/myrepo_poc.git"
+  }
+}

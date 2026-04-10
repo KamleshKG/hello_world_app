@@ -1,0 +1,33 @@
+Manifest-Version: 1.0
+Atlassian-Build-Date: 2026-02-02T23:33:33+0530
+Atlassian-Scan-Attributes: atlassian-spring-scanner-1.0
+Bnd-LastModified: 1770055414202
+Build-Jdk-Spec: 17
+Bundle-Description: Vetoes PRs containing debug=true in web.config
+Bundle-DocURL: http://www.example.com/
+Bundle-ManifestVersion: 2
+Bundle-Name: PR Merge Code Scan Plugin
+Bundle-SymbolicName: com.example.bitbucket.pr-debug-scanner
+Bundle-Vendor: Example Corp
+Bundle-Version: 1.0.0.SNAPSHOT
+Created-By: Apache Maven Bundle Plugin 5.1.9
+Import-Package: 
+ com.atlassian.bitbucket.content;resolution:=optional,
+ com.atlassian.bitbucket.hook.repository;resolution:=optional,
+ com.atlassian.bitbucket.io;resolution:=optional,
+ com.atlassian.bitbucket.project;resolution:=optional,
+ com.atlassian.bitbucket.pull;resolution:=optional,
+ com.atlassian.bitbucket.repository;resolution:=optional,
+ com.atlassian.plugin.spring.scanner.annotation.imports;resolution:=opti
+ onal,
+ com.atlassian.sal.api.pluginsettings;resolution:=optional,
+ jakarta.annotation;resolution:=optional,
+ jakarta.inject;resolution:=optional,
+ jakarta.ws.rs;resolution:=optional,
+ jakarta.ws.rs.core;resolution:=optional,
+ java.io;resolution:=optional,
+ java.lang;resolution:=optional,
+ java.lang.invoke;resolution:=optional,
+ java.nio.charset;resolution:=optional,
+ java.util;resolution:=optional
+Tool: Bnd-6.3.1.202206071316

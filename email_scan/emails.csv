@@ -1,0 +1,574 @@
+﻿message_id,subject,sender_name,sender_email,received_time,body,body_length,has_attachments
+5039937F50E3C583DAA9CFBE6BD27304,CRITICAL BUG – API Gateway Timeout Causing 503 Errors in Production,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-20 02:39:00,"Hi Engineering Team,
+
+We are experiencing a critical production issue since 09:45 AM IST today.
+
+Issue: API Gateway is timing out for requests exceeding 30 seconds, causing 503 Service Unavailable errors.
+Impact: Approximately 35% of user requests on the checkout flow are failing.
+Affected Services: payment-service, order-service, notification-service
+Error Rate: ~1,200 errors/minute (monitored via Datadog)
+Customers Affected: Estimated 4,500 users in the last 2 hours
+
+Root Cause (preliminary): The new Redis caching layer deployed in build #v2.4.8 appears to have introduced a deadlock under high concurrency.
+
+Immediate Actions Required:
+1. Vikram – Please rollback to build #v2.4.7 immediately
+2. Amit – Increase API Gateway timeout limit to 60s as a temporary fix
+3. DevOps – Scale up the payment-service pods from 3 to 8 replicas
+
+Incident Bridge: Zoom link shared on #incidents Slack channel
+Severity: P0 – All hands on deck
+
+Rajesh Sharma
+Engineering Manager | Acme Corp",982,False
+33768519F3338BC6F58A52F752BFF906,Invoice #INV-2024-0421 – Q3 Software License Renewal,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-19 07:59:00,"Hi Team,
+
+Please find attached Invoice #INV-2024-0421 for the Q3 software license renewal amounting to $12,450.00.
+The payment is due by 15th October 2024. Kindly process the payment to Acme Corp's bank account (Account No: 7823456781, IFSC: HDFC0001234).
+
+The invoice covers the following services:
+- Enterprise License for CRM Suite (10 users): $8,000
+- Cloud Hosting (AWS, 3 months): $3,200
+- Priority Support Package: $1,250
+
+Please ensure the finance team approves this before the deadline to avoid a 2% late fee.
+Let me know if you need any clarification or a revised invoice.
+
+Best regards,
+Rajesh Sharma
+Senior Account Manager | Acme Corp
+Phone: +91-98201-55432",669,False
+647100944A46C716001EC0B633F7C310,Security Vulnerability Report – CVE-2024-45231 Patch Required,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-19 07:38:00,"URGENT: Security Team,
+
+A critical security vulnerability CVE-2024-45231 has been identified in the OpenSSL library version 3.0.x that we currently use across our services.
+
+Severity: CRITICAL (CVSS Score: 9.8)
+Affected Component: OpenSSL 3.0.2 (used in auth-service, api-gateway, file-upload-service)
+Risk: Remote code execution via a crafted certificate chain
+
+Immediate Action Required:
+1. Upgrade OpenSSL to version 3.0.15 or later across all services
+2. Rotate all SSL/TLS certificates as a precaution
+3. Review access logs for any suspicious certificate-based authentication attempts since 1st October
+
+Deadline: All patches must be deployed within 72 hours as per our security policy.
+
+Reference: https://nvd.nist.gov/vuln/detail/CVE-2024-45231
+
+Please provide a status update by end of day today.
+
+Rajesh Sharma
+CISO | Acme Corp",836,False
+5CD07B5E4C49C484A65D5921AE2DA10C,Contract Review Required – MSA with DataStream Technologies,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-18 07:47:00,"Hi Legal Team,
+
+Please review the attached Master Service Agreement (MSA) with DataStream Technologies (Contract Ref: CT-2024-DST-007).
+
+Key clauses requiring your attention:
+1. Clause 8.3 – Indemnification: DataStream is requesting broader liability coverage than our standard template. Legal needs to assess the risk.
+2. Clause 12.1 – Data Privacy: References GDPR compliance but our operations are primarily under the IT Act, 2000. Needs alignment.
+3. Clause 15 – Termination: The 90-day termination notice seems excessive. We'd prefer 30 days.
+4. Clause 19.2 – Governing Law: They propose New York jurisdiction. We need Mumbai courts.
+
+The client's legal contact is Ms. Amanda Foster (afoster@datastream.io).
+Sign-off deadline: 30th October 2024.
+
+Please revert with your comments by 25th October.
+
+Thanks,
+Rajesh Sharma",824,True
+AB3FE9042B0A5073AB64CC780E010A68,Proposal Submitted – Enterprise CRM Deal with GlobalRetail Ltd.,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-18 04:09:00,"Hi Sales Team,
+
+I have submitted the enterprise proposal to GlobalRetail Ltd. today.
+
+Deal Summary:
+- Client: GlobalRetail Ltd. (Contact: Mr. James Patel, CTO)
+- Proposal Value: $185,000 (3-year contract)
+- Products: CRM Enterprise Suite + Analytics Module + Dedicated Support
+- Discount Offered: 12% (pre-approved by Sales Director)
+- Decision Timeline: Client to revert by 28th October 2024
+
+Competitive Landscape: We are competing against Salesforce and HubSpot Enterprise.
+Our differentiators highlighted in the proposal:
+1. India-based data residency (critical for GlobalRetail's compliance)
+2. 40% lower TCO over 3 years vs Salesforce
+3. Dedicated customer success manager included
+
+Next Steps:
+- Demo scheduled: 22nd October at 3:00 PM with James Patel's team
+- Reference call arranged with TechNova Inc. (existing customer)
+- Commercial negotiation call: 25th October
+
+Probability of closure: 65%
+Expected close date: 31st October 2024
+
+Rajesh Sharma
+Enterprise Sales Manager | Acme Corp",995,True
+20D78A74939CEB244A29A49159C9F380,Offer Letter – Senior Data Engineer Position,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-17 00:34:00,"Dear Priya Menon,
+
+We are delighted to extend an offer of employment for the position of Senior Data Engineer at Acme Corp.
+
+Position Details:
+- Designation: Senior Data Engineer (L5)
+- Department: Technology & Platform
+- Reporting to: Vikram Nair, VP Engineering
+- Start Date: 1st November 2024
+- CTC: ₹28,00,000 per annum (Fixed: ₹22L + Variable: ₹4L + RSUs: ₹2L)
+- Work Location: Bangalore (Hybrid – 3 days office)
+
+Benefits include health insurance for self and family, 30 days paid leave, employee stock options, and annual performance review.
+
+Please sign and return the attached offer letter by 20th October 2024. 
+Feel free to reach out to hr@acmecorp.com with any questions.
+
+Warm regards,
+Rajesh Sharma
+HR Director | Acme Corp",736,True
+D7F08F280E1DEB55FD1ABD88B5434CE9,Payment Confirmation – Transaction ID TXN8823991,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-16 04:45:00,"Dear Finance Team,
+
+This is to confirm that we have received your payment of $12,450.00 against Invoice #INV-2024-0421.
+Transaction ID: TXN8823991
+Date: 17th October 2024
+Mode: NEFT Transfer
+
+Your account has been updated accordingly. The receipt is attached for your records.
+
+Thank you for the prompt payment. It's always a pleasure working with your organisation.
+
+Warm regards,
+Rajesh Sharma
+Accounts Receivable | Acme Corp",427,True
+F09470AF770F3DF529E28CE19838F7BA,Meeting Invite – Q4 Business Review | 28th Oct | 2:00 PM IST,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-16 04:07:00,"Hi All,
+
+You are invited to the Q4 2024 Business Review meeting.
+
+📅 Date: Monday, 28th October 2024
+🕑 Time: 2:00 PM – 4:00 PM IST
+📍 Location: Acme Corp HQ, Board Room 3 (Nariman Point, Mumbai)
+🔗 Zoom Link: https://zoom.us/j/99887766 (Passcode: acme2024)
+
+Agenda:
+1. Q3 Performance Review – Revenue, Churn, NPS (30 min)
+2. Q4 Targets & Go-to-Market Strategy (40 min)
+3. Product Roadmap Update – Sprint 35-40 (20 min)
+4. HR Updates – Hiring Plan Q4 (15 min)
+5. Open Discussion & AOB (15 min)
+
+Attendees: CEO, CFO, VP Sales, VP Engineering, HR Director, Marketing Head
+Pre-read materials attached (please review before the meeting).
+
+Please confirm attendance by replying to this email.
+
+Regards,
+Rajesh Sharma
+Chief of Staff | Acme Corp",734,False
+D123801EA80E39A86048F0671FA36393,Performance Appraisal Cycle Q3 2024 – Manager Action Required,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-15 01:23:00,"Hi All Managers,
+
+The Q3 2024 performance appraisal cycle is now open. Please complete the following by 25th October 2024:
+
+1. Self-Assessment Forms – Remind your direct reports to complete theirs by 18th Oct
+2. Manager Ratings – Submit ratings and comments via the HR portal (Workday)
+3. Calibration Sessions – Scheduled for 28-29th October with your respective HRBPs
+
+Rating Scale:
+5 – Exceptional | 4 – Exceeds Expectations | 3 – Meets Expectations | 2 – Needs Improvement | 1 – Unsatisfactory
+
+Please note that bell curve guidelines apply: max 15% in rating 5, max 25% in rating 4.
+Any bell curve exceptions must be approved by the Director and HR head.
+
+Contact your HRBP or rajesh.sharma@acmecorp.com for queries.
+
+Regards,
+Rajesh Sharma
+HR Business Partner | Acme Corp",775,False
+93CD1639FCDA00D1151030B3E1C7A298,Lead Follow-up – TechStart Mumbai Demo Request,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-14 02:55:00,"Hi,
+
+Following up on the inbound lead from TechStart Mumbai (contact: Kiran Desai, Co-Founder).
+
+They attended our webinar on 10th October and have requested a personalised product demo.
+
+Company Profile:
+- TechStart Mumbai – B2B SaaS startup, 45 employees
+- Current Stack: Zoho CRM + manual Excel reporting
+- Pain Points: No unified view of sales pipeline, manual report generation, no customer segmentation
+- Budget Signal: $20,000-$30,000 annually
+- Decision Timeline: Q4 2024
+
+Recommended Product: Acme CRM Starter + Analytics Basic
+
+Demo scheduled: 23rd October at 4:00 PM
+Attendees from their side: Kiran Desai (Co-Founder), Pooja Shah (Sales Head)
+
+Please prepare a startup-focused deck with ROI calculator and onboarding timeline.
+
+Rajesh Sharma",753,False
+DF5830A5E9323F8606589A02A5EB2811,NDA Signed – Confidentiality Agreement with Nexus Analytics,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-14 00:22:00,"Team,
+
+Please note that the Non-Disclosure Agreement with Nexus Analytics Pvt. Ltd. has been duly signed by both parties today, 14th October 2024.
+
+Key details:
+- Agreement Ref: NDA-2024-NEX-019
+- Effective Date: 14th October 2024
+- Expiry: 14th October 2026 (2 years)
+- Scope: All discussions related to Project Orion including pricing, technical architecture and customer data
+
+Please ensure all project communications with Nexus Analytics are marked CONFIDENTIAL and shared only on encrypted channels.
+
+The signed PDF is attached. A copy has been sent to our legal records system.
+
+Regards,
+Rajesh Sharma
+Legal & Compliance | Acme Corp",638,True
+42BDE6A67FAE53E691FD032E7A2B7026,Budget Overrun Alert – Project Titan Q4 Forecast,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-13 06:13:00,"Hi,
+
+I wanted to flag a concern regarding the Q4 budget forecast for Project Titan.
+Current spend as of October 2024: $245,000
+Approved budget: $210,000
+Overrun: $35,000 (16.7%)
+
+The overrun is primarily driven by:
+1. Increased AWS infrastructure costs due to higher-than-expected traffic (+$18,000)
+2. Additional contractor hours for the security audit ($12,000)
+3. Miscellaneous travel and accommodation for the New York client visit ($5,000)
+
+I recommend we schedule an urgent call with the CFO, Sarah Mitchell, and the project leads to review options.
+We can either request a budget revision or defer certain non-critical deliverables to Q1 2025.
+
+Please revert at your earliest convenience.
+
+Regards,
+Rajesh Sharma",719,True
+43C7F7F1E97A149A73EE5F0C67EF56CE,Sprint 34 Release Notes – New Features & Bug Fixes,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-12 06:47:00,"Hi Team,
+
+Sprint 34 has been successfully deployed to production on 12th October 2024. Here's a summary:
+
+🚀 New Features:
+- Advanced search with multi-filter support (JIRA: PROD-1892)
+- Dark mode for the dashboard UI (PROD-1901)
+- Bulk export to CSV/Excel from analytics module (PROD-1876)
+- Two-factor authentication for admin users (PROD-1845)
+
+🐛 Bug Fixes:
+- Fixed pagination breaking on > 10,000 records (PROD-1934)
+- Resolved memory leak in the report generation service (PROD-1922)
+- Fixed timezone mismatch in scheduled email notifications (PROD-1918)
+
+⚠️ Known Issues:
+- Chart rendering slow on Safari iOS 17 (PROD-1940 – in progress, ETA Sprint 35)
+
+Performance Metrics:
+- API response time improved by 23% after Redis optimization
+- Test coverage increased from 71% to 78%
+
+Next Sprint 35 planning is on 21st October at 10:00 AM.
+
+Rajesh Sharma
+Engineering Manager",874,False
+AEFDFB6FF3BF769D9A7AB3B25BB2BBBD,Meeting Minutes – Weekly Tech Sync | 11th Oct 2024,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-11 03:24:00,"Hi Team,
+
+Please find the minutes of the Weekly Tech Sync held on 11th October 2024.
+
+Attendees: Vikram Nair, Amit Kapoor, Sneha Rao, Rajesh Sharma, Arjun Mehta
+
+Agenda & Discussion:
+
+1. Sprint 34 Status:
+   - 18/22 stories completed ✅
+   - 4 stories carried to Sprint 35 (dark mode mobile + CSV export edge cases)
+   - Release on track for 12th October
+
+2. Infrastructure:
+   - AWS bill for September: $18,400 (↑ 12% due to traffic spike)
+   - Decision: Implement auto-scaling for payment-service pods
+   - Action: Amit to set up cost alerts at $20K threshold
+
+3. Security Audit:
+   - PwC audit findings reviewed
+   - 3 critical, 7 high, 12 medium vulnerabilities identified
+   - All critical items to be resolved before 25th October
+
+4. Hiring:
+   - 2 Senior Backend Engineers interviews scheduled for 17-18th October
+   - DevOps Engineer position still open (3 candidates in pipeline)
+
+Next Sync: 18th October 2024, 10:00 AM
+
+Action Items:
+- Amit: Auto-scaling by 16th Oct
+- Sneha: Patch critical vulnerabilities by 20th Oct
+- Arjun: Complete backend interviews by 19th Oct
+
+Rajesh Sharma",1091,True
+E5D6BCFB5A27055F459C27361E351F43,GDPR Compliance Audit – Action Items Due 31st Oct,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-11 00:48:00,"Hi All,
+
+Following the GDPR compliance audit conducted by PwC Advisory last week, we have received a list of action items that must be addressed before 31st October 2024.
+
+Critical (P1):
+- Update Privacy Policy to reflect new data retention periods (Owner: Legal Team)
+- Implement data subject request workflow in CRM (Owner: Tech Team)
+
+High (P2):
+- Conduct Data Protection Impact Assessment (DPIA) for the new analytics platform
+- Review and update vendor DPA agreements (12 vendors pending)
+
+Medium (P3):
+- Employee GDPR training refresher for all staff (due by end of November)
+
+Non-compliance could result in fines up to €20 million or 4% of global annual turnover.
+Please treat this with the highest priority.
+
+Rajesh Sharma
+DPO – Acme Corp",746,False
+9D1AF4D4C74B68D1F7ED7043DD7C6C34,Database Migration Plan – PostgreSQL 14 to 16 Upgrade,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-10 07:55:00,"Team,
+
+We are planning to migrate our primary database from PostgreSQL 14.5 to PostgreSQL 16.2.
+
+Migration Window: Saturday, 26th October 2024, 11:00 PM to 3:00 AM IST
+Expected Downtime: ~2 hours (11 PM – 1 AM)
+Rollback Window: 1 AM – 3 AM (if issues arise)
+
+Steps:
+1. Full database backup (pg_dump) – starts at 10:30 PM
+2. Spin up new PostgreSQL 16.2 instance on AWS RDS
+3. Migrate data using pg_upgrade utility
+4. Run regression test suite (estimated 45 minutes)
+5. DNS cutover to new instance
+6. Monitor for 60 minutes post-migration
+
+Key Changes in PG16:
+- Improved query parallelism (~40% faster complex queries)
+- Better JSON performance
+- Logical replication enhancements
+
+Pre-requisites for teams:
+- Dev team: Validate all ORM queries are PG16 compatible by 23rd Oct
+- QA: Prepare regression tests by 24th Oct
+- DevOps: Provision the new RDS instance by 22nd Oct
+
+Please confirm availability for the migration night.
+
+Rajesh Sharma",939,False
+0C9ABAC9F0A6F3873254B9641A756536,Annual Revenue Report – FY 2023-24 Summary,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-09 00:55:00,"Team,
+
+Please find below the FY 2023-24 revenue summary for your records:
+
+Total Revenue: $4.2 Million (↑ 18% YoY)
+- Product Sales: $2.8M
+- Professional Services: $0.9M
+- Licensing & Subscriptions: $0.5M
+
+Top Clients by Revenue:
+1. TechNova Inc. – $620,000
+2. GlobalRetail Ltd. – $480,000
+3. Pinnacle Health – $310,000
+
+Net Profit Margin: 22.4%
+EBITDA: $940,000
+
+The full report is attached as a PDF. A board presentation is scheduled for 5th November 2024 at 2:00 PM IST.
+Please review the figures and share any discrepancies before the meeting.
+
+Best,
+Rajesh Sharma
+Finance Director | Acme Corp",596,False
+6FDA60C195640793FA7E77872AF59879,Urgent: Office Closure – Cyclone Warning Mumbai 19th Oct,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-08 07:36:00,"Important Notice – All Mumbai Staff,
+
+Due to the IMD cyclone warning (Cyclone Dana) for the Mumbai Metropolitan Region on 19th October 2024, the Nariman Point office will remain CLOSED on Saturday, 19th October 2024.
+
+All employees are advised to:
+1. Work from home if your role requires weekend availability
+2. Avoid travel to office or non-essential outdoor movement
+3. Stay updated via IMD website (imd.gov.in) and local authorities
+
+Critical systems are monitored by our on-call DevOps team (Amit Kapoor, Arjun Mehta). Any P0 incidents should be reported to the #incidents channel on Slack.
+
+For any emergency, contact:
+- Security/Facilities: +91-98200-12345
+- IT Emergency: +91-98200-67890
+
+Stay safe. The safety of our employees is our top priority.
+
+Rajesh Sharma
+COO | Acme Corp",786,False
+5F91B13FF295623F481E44748B5518A2,Cancellation – Client Call with DataStream Rescheduled to 24th Oct,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-07 07:58:00,"Hi,
+
+I wanted to inform you that the client call scheduled with DataStream Technologies for tomorrow, 17th October at 3:00 PM, has been rescheduled.
+
+Reason: Ms. Amanda Foster (DataStream's Legal Head) is unavailable due to a conflicting board meeting.
+
+New Schedule:
+📅 Date: Thursday, 24th October 2024
+🕒 Time: 11:00 AM – 12:00 PM IST
+🔗 Updated Zoom link will be shared by Monday
+
+Agenda remains the same:
+- MSA review and clause discussion
+- Finalise governing law and termination terms
+- Sign-off timeline for CT-2024-DST-007
+
+Please update your calendars accordingly. Apologies for the inconvenience.
+
+Rajesh Sharma",619,False
+FF6F6E85B536234DDEAA59DC5286749E,Leave Policy Update – Work From Home & Hybrid Guidelines FY2025,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-06 08:12:00,"Team,
+
+Please note the updated leave and hybrid work policy effective 1st November 2024:
+
+Annual Leave: 24 days (increased from 21)
+Sick Leave: 12 days (unchanged)
+Casual Leave: 6 days (unchanged)
+
+New – Hybrid Work Policy:
+- Employees may work from home up to 2 days per week (Mon and Fri preferred)
+- Teams requiring client-facing work must be present Tuesday to Thursday
+- WFH must be approved by the line manager via Workday
+- Exceptions for medical/caregiving situations can be requested through HR
+
+Unused annual leave can be carried forward up to a maximum of 10 days (revised from 7).
+Leave encashment is available once per year during the April pay cycle.
+
+Please acknowledge receipt of this email. Updated policy document is attached.
+
+HR Team | Acme Corp
+Rajesh Sharma",779,True
+1F3C8901F22A12C26E784EE1F8A45646,Deal Closed! – Pinnacle Health Signs 2-Year Contract,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-05 01:26:00,"🎉 Great News Team!
+
+I am thrilled to announce that Pinnacle Health has officially signed a 2-year contract with Acme Corp!
+
+Deal Details:
+- Client: Pinnacle Health Systems Pvt. Ltd.
+- Contract Value: $96,000 (2 years)
+- Products: HealthTrack Pro + Patient Analytics + HIPAA Compliance Module
+- Start Date: 1st November 2024
+- Key Contact: Dr. Anita Rao, CEO
+
+This deal has been in the pipeline for 4 months. Special thanks to:
+- Meera Singh (Pre-Sales) for the outstanding demo
+- Legal Team for fast-tracking the BAA agreement
+- Product Team for the custom HIPAA module demo
+
+Commission: As per the sales incentive plan, the team will be credited in the November payroll.
+
+Next Action: Kickoff meeting scheduled for 4th November at 11 AM with Dr. Rao's team.
+
+Let's celebrate! 🥂
+
+Rajesh Sharma
+VP Sales | Acme Corp",814,True
+19C91F514FCB07642EA0813B7B9EFAA5,Feedback Request – Q3 Employee Satisfaction Survey,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-04 01:20:00,"Dear Team,
+
+As part of our ongoing commitment to being a great place to work, we are conducting the Q3 Employee Satisfaction Survey.
+
+Survey Link: https://survey.acmecorp.com/q3-2024
+Deadline: 25th October 2024
+Time to Complete: ~8 minutes
+Anonymity: Responses are 100% anonymous
+
+Areas covered:
+- Work-life balance and flexibility
+- Manager effectiveness and communication
+- Career growth and learning opportunities
+- Team collaboration and culture
+- Office facilities and tools
+
+Your honest feedback helps us improve policies, culture, and your overall experience at Acme Corp.
+Last quarter's survey led to the extended hybrid work policy and the increased annual leave allowance – your voice matters!
+
+Participation target: 85% (we achieved 78% last quarter – let's beat it!)
+
+Thank you in advance for your time.
+
+Rajesh Sharma
+HR Director | Acme Corp",854,False
+33D38AA0315BBBAE4FC564053721EBB3,Refund Request – Order ORD-20241005 Processing Delay,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-03 02:58:00,"Hello,
+
+I am writing to follow up on the refund request submitted on 5th October 2024 for Order ORD-20241005.
+The refund amount of $3,750.00 was approved by our billing team on 8th October, however we have not yet received the credit.
+
+As per our refund policy, the amount should reflect within 7 business days. It has now been 14 business days.
+Could you please escalate this to your finance team and provide an updated ETA?
+
+This delay is causing inconvenience and we may need to escalate to the payment gateway provider if not resolved by Friday.
+
+Regards,
+Rajesh Sharma",573,True
+10372C16DCDA24F9ECE229E0133B0C6E,"AWS Cost Optimisation – Savings of $4,200/month Identified",Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-02 06:37:00,"Hi DevOps & Finance,
+
+Following a thorough review of our AWS infrastructure costs, I have identified optimisation opportunities that can save us approximately $4,200 per month.
+
+Findings:
+
+1. Idle EC2 Instances (8 instances, t3.large):
+   - Running 24/7 but used < 5% CPU on weekdays
+   - Recommendation: Switch to spot instances or schedule stop/start
+   - Savings: ~$1,400/month
+
+2. Unattached EBS Volumes (23 volumes, ~4TB):
+   - Left over from terminated instances
+   - Recommendation: Delete after confirming with teams
+   - Savings: ~$460/month
+
+3. RDS Multi-AZ for non-prod environments:
+   - Dev and staging DBs don't need Multi-AZ
+   - Recommendation: Disable for non-prod
+   - Savings: ~$1,100/month
+
+4. CloudFront + S3 Lifecycle Policies:
+   - Old log files not being archived to Glacier
+   - Recommendation: Implement S3 lifecycle rules
+   - Savings: ~$1,240/month
+
+Total Estimated Annual Savings: $50,400
+
+Please review the detailed report attached and approve the changes by 22nd October.
+
+Rajesh Sharma
+Engineering Manager | Acme Corp",1049,False
+B064EDFF00D36575B2AD314CD1220132,Welcome to Acme Corp – Onboarding Information for New Joiners,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-10-01 05:11:00,"Dear New Team Members,
+
+Welcome to Acme Corp! We are thrilled to have you on board.
+
+Your first week schedule:
+Day 1 (Monday): HR orientation at 9:00 AM, office tour, laptop and access setup
+Day 2 (Tuesday): IT security training, Workday onboarding, team introductions
+Day 3 (Wednesday): Product overview with Product team (10 AM – 12 PM)
+Day 4 (Thursday): Shadow sessions with your respective team leads
+Day 5 (Friday): New joiner lunch with leadership team at 1:00 PM
+
+Important Contacts:
+- IT Helpdesk: it@acmecorp.com | Ext: 2001
+- HR Team: hr@acmecorp.com | Ext: 2002
+- Facilities: admin@acmecorp.com | Ext: 2003
+
+Please bring original ID documents (Aadhaar, PAN card, degree certificates) for verification.
+Your access cards and laptops will be ready at the reception on Day 1.
+
+Looking forward to an exciting journey together!
+
+Rajesh Sharma
+HR Director | Acme Corp",872,False
+972B082B99E135A0CF0154E323D951DD,Quarterly Newsletter – Acme Corp October 2024,Rajesh Sharma,rajesh.sharma@acmecorp.com,2024-09-29 07:06:00,"Hi Team,
+
+Here's your October 2024 Quarterly Newsletter!
+
+🏆 Highlights:
+- Acme Corp was featured in Forbes India's ""Top 50 SaaS Companies 2024"" list!
+- We crossed 500 enterprise customers milestone this quarter
+- Net Promoter Score (NPS) reached an all-time high of 72
+
+📢 Announcements:
+- New office inaugurated in Hyderabad (Jubilee Hills) – 3rd October 2024
+- Acme Corp will exhibit at SaaS India Summit, Bangalore – 15th November 2024
+- Annual Company Retreat: Goa, 6-8 December 2024 (registration link below)
+
+👥 People News:
+- Congratulations to Meera Singh on her promotion to Senior Sales Director!
+- Welcome to 23 new team members who joined this quarter
+- Work Anniversary shoutouts: Vikram Nair (5 years!), Sneha Rao (3 years)
+
+🎯 Q3 Numbers:
+- Revenue: $1.1M (↑ 22% QoQ)
+- New Customer Acquisitions: 47
+- Customer Churn: 2.1% (below 3% target ✅)
+
+See you all at the all-hands meeting on 28th October!
+
+Rajesh Sharma",924,True

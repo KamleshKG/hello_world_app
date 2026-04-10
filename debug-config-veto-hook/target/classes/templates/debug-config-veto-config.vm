@@ -1,0 +1,106 @@
+## Configuration for Debug Config Veto Hook
+
+<div class="field-group">
+    <label for="enabled">Enable Hook</label>
+    <input type="checkbox" id="enabled" name="enabled" #if($enabled == "true") checked #end>
+    <div class="description">
+        Enable or disable debug configuration scanning for this repository/project.
+        When disabled, the hook will not run at all.
+    </div>
+</div>
+
+<div class="field-group">
+    <label for="blockMerge">Block Merge on Violations</label>
+    <input type="checkbox" id="blockMerge" name="blockMerge" #if($blockMerge == "true" || !$blockMerge) checked #end>
+    <div class="description">
+        <strong>Checked:</strong> Block merge when violations are found (recommended).<br>
+        <strong>Unchecked:</strong> Show warning but allow merge (warning mode).
+    </div>
+</div>
+
+<div class="field-group">
+    <label for="configPatterns">Configuration File Patterns</label>
+    <textarea id="configPatterns" name="configPatterns" rows="6" cols="80" class="text long-field">$!configPatterns</textarea>
+    <div class="description">
+        Comma-separated regex patterns for configuration files to scan.<br>
+        <strong>Example:</strong> .*web\.config$,.*settings\.py$,.*\.env$<br>
+        <strong>Default patterns:</strong>
+        <ul>
+            <li>.*web\.config$ (ASP.NET)</li>
+            <li>.*appsettings\.json$ (.NET Core)</li>
+            <li>.*settings\.py$ (Django)</li>
+            <li>.*config\.py$ (Python)</li>
+            <li>.*\.env$ (Environment files)</li>
+            <li>.*\.ini$ (INI files)</li>
+            <li>.*\.conf$ (Config files)</li>
+        </ul>
+    </div>
+</div>
+
+<div class="field-group">
+    <label for="debugPatterns">Debug Detection Patterns</label>
+    <textarea id="debugPatterns" name="debugPatterns" rows="6" cols="80" class="text long-field">$!debugPatterns</textarea>
+    <div class="description">
+        Comma-separated regex patterns to detect debug configurations.<br>
+        <strong>Example:</strong> debug\s*=\s*[Tt]rue,DEBUG\s*=\s*[Tt]rue<br>
+        <strong>Default patterns:</strong>
+        <ul>
+            <li>debug\s*=\s*[Tt]rue (debug=True or debug=true)</li>
+            <li>DEBUG\s*=\s*[Tt]rue (DEBUG=True)</li>
+            <li>"debug"\s*:\s*true (JSON format)</li>
+            <li>'debug'\s*:\s*true (JSON with single quotes)</li>
+            <li>&lt;compilation\s+debug\s*=\s*"true" (ASP.NET web.config)</li>
+        </ul>
+    </div>
+</div>
+
+<div class="field-group">
+    <label for="excludePatterns">Exclude File Patterns (Optional)</label>
+    <textarea id="excludePatterns" name="excludePatterns" rows="3" cols="80" class="text long-field">$!excludePatterns</textarea>
+    <div class="description">
+        Comma-separated regex patterns for files to exclude from scanning.<br>
+        <strong>Example:</strong> .*test.*,.*\.example$,.*\.template$<br>
+        Use this to skip test files, example configs, or templates.
+    </div>
+</div>
+
+<div class="field-group">
+    <label for="scanAllFiles">Scan All Files</label>
+    <input type="checkbox" id="scanAllFiles" name="scanAllFiles" #if($scanAllFiles == "true") checked #end>
+    <div class="description">
+        <strong>Checked:</strong> Scan all files in the PR for debug patterns (not recommended).<br>
+        <strong>Unchecked:</strong> Only scan files matching configuration file patterns (recommended).
+    </div>
+</div>
+
+<hr>
+
+<h3>Configuration Examples</h3>
+
+<div class="aui-message info">
+    <p><strong>Repository Level:</strong></p>
+    <ul>
+        <li>Enable hook for specific repositories that deploy to production</li>
+        <li>Customize patterns for repository-specific config files</li>
+        <li>Set to warning mode for development repositories</li>
+    </ul>
+</div>
+
+<div class="aui-message info">
+    <p><strong>Project Level:</strong></p>
+    <ul>
+        <li>Enable hook for all repositories in a project</li>
+        <li>Set standard patterns across the entire project</li>
+        <li>Individual repositories can override project settings</li>
+    </ul>
+</div>
+
+<div class="aui-message warning">
+    <p><strong>Best Practices:</strong></p>
+    <ul>
+        <li>Enable blocking mode for production repositories</li>
+        <li>Use warning mode for development/staging repositories</li>
+        <li>Test patterns carefully to avoid false positives</li>
+        <li>Document any custom patterns for your team</li>
+    </ul>
+</div>

@@ -1,0 +1,11 @@
+ATATT3xFfGF0RrWwLVBhxVPVcFeOCfd55jON0Z2btQJO1EH_
+gpcdSTduPraPwYwIZ6fak7yrCBXUwFeWFDKQeCtcOgNX2A3NB
+F2ZSrP2HSPiRSOQ08Lp5diWJxjM7MwaR3gOgp5wPyrnt7DCNB
+yqdr4s76pyG1bWhv8u7YCmZ5F9APqHyuu9m4Q=6B7C3DCC
+
+
+
+
+const WORKSPACE = 'myworkspace_poc';
+const REPO = 'myrepo_poc';
+const BASE_BRANCH = 'main';

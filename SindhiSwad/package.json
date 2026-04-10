@@ -1,0 +1,17 @@
+{
+  "name": "sindhi-swad",
+  "private": true,
+  "packageManager": "pnpm@9.6.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @sindhiswad/web dev",
+    "dev:api": "pnpm --filter @sindhiswad/api start:dev",
+    "dev:mobile": "pnpm --filter @sindhiswad/mobile start",
+    "dev:all": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "db:push": "prisma db push --schema=infra/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=infra/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=infra/prisma/schema.prisma"
+  }
+}

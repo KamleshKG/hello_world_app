@@ -1,0 +1,15 @@
+# .env
+# SingleStore Cloud Database Configuration
+HOST
+PORT
+USER
+DATABASE
+
+# SSL Configuration (REQUIRED for SingleStore Cloud)
+SINGLESTORE_USE_SSL=true
+SINGLESTORE_SSL_VERIFY_CERT=true
+
+# Connection Pool Settings
+SINGLESTORE_POOL_SIZE=5
+SINGLESTORE_MAX_OVERFLOW=10
+SINGLESTORE_POOL_RECYCLE=3600

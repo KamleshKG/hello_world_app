@@ -1,0 +1,15 @@
+{
+  "quest_category": "Onboarding",
+  "quests": [
+    {
+      "id": "onboard_01",
+      "name": "Complete Profile",
+      "description": "Complete your user profile information",
+      "points": 10,
+      "difficulty": "beginner",
+      "prerequisites": [],
+      "tags": ["onboarding", "profile"],
+      "badge": "profile_complete"
+    }
+  ]
+}

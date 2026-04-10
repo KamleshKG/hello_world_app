@@ -1,0 +1,60 @@
+{
+  "quest_category": "CI/CD Pipelines",
+  "quests": [
+    {
+      "id": "cicd_01",
+      "title": "Jenkins Pipeline Novice",
+      "description": "Create your first Jenkins declarative pipeline",
+      "points": 50,
+      "difficulty": "beginner",
+      "prerequisites": [],
+      "completion_criteria": "Submit a Jenkinsfile with a basic pipeline structure",
+      "badge": "jenkins_starter",
+      "tags": ["jenkins", "pipeline", "beginner"]
+    },
+    {
+      "id": "cicd_02",
+      "title": "GitHub Actions Explorer",
+      "description": "Create a GitHub Actions workflow for your project",
+      "points": 75,
+      "difficulty": "intermediate",
+      "prerequisites": ["cicd_01"],
+      "completion_criteria": "Submit a GitHub Actions workflow YAML file with at least 3 jobs",
+      "badge": "github_actions_pro",
+      "tags": ["github", "actions", "ci/cd"]
+    },
+    {
+      "id": "cicd_03",
+      "title": "Container Build Master",
+      "description": "Create a CI pipeline that builds and pushes Docker images",
+      "points": 100,
+      "difficulty": "intermediate",
+      "prerequisites": ["cicd_01"],
+      "completion_criteria": "Submit a pipeline that builds Docker images and pushes to a registry",
+      "badge": "docker_build_expert",
+      "tags": ["docker", "containers", "ci"]
+    },
+    {
+      "id": "cicd_04",
+      "title": "Multi-Stage Deployment Pro",
+      "description": "Create a pipeline with dev, staging, and production environments",
+      "points": 150,
+      "difficulty": "advanced",
+      "prerequisites": ["cicd_02", "cicd_03"],
+      "completion_criteria": "Submit a pipeline that deploys to multiple environments with approval gates",
+      "badge": "multi_stage_deployment",
+      "tags": ["deployment", "environments", "advanced"]
+    },
+    {
+      "id": "cicd_05",
+      "title": "Performance Testing Integrator",
+      "description": "Integrate performance testing into your CI pipeline",
+      "points": 125,
+      "difficulty": "advanced",
+      "prerequisites": ["cicd_02"],
+      "completion_criteria": "Submit a pipeline that includes automated performance testing",
+      "badge": "performance_testing",
+      "tags": ["testing", "performance", "advanced"]
+    }
+  ]
+}

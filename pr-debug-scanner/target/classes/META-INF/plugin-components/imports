@@ -1,0 +1,2 @@
+com.atlassian.bitbucket.content.ContentService
+com.atlassian.sal.api.pluginsettings.PluginSettingsFactory

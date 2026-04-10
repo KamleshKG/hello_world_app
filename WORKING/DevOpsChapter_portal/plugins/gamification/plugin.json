@@ -1,0 +1,28 @@
+{
+    "name": "Gamification Portal",
+    "slug": "gamification",
+    "version": "1.0",
+    "description": "Onboarding and upskilling through gamified quests and achievements",
+    "pages": [
+        {
+            "name": "Gamification Dashboard",
+            "icon": "🏆",
+            "module": "pages.dashboard",
+            "function": "render"
+        },
+        {
+            "name": "Leaderboard",
+            "icon": "👑",
+            "module": "pages.leaderboard",
+            "function": "render",
+            "admin_only": true
+        },
+        {
+            "name": "Quest Admin",
+            "icon": "⚙️",
+            "module": "pages.admin",
+            "function": "render",
+            "admin_only": true
+        }
+    ]
+}
