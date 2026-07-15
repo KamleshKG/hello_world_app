@@ -1,0 +1,229 @@
+design startegy if curl fails then what so lets start with curl ..thinkSmart thinking kk! Let's design a full fallback strategy — curl first, then escalating alternatives. Let me think this through end-to-end.
+
+Master Strategy — Decision Tree
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.25s;
+    animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+VvisualizeVvisualize show_widget
+Now let's go step by step, starting with curl.
+
+Step 1 — curl test (validate server-side limit)
+This is your cheapest proof-of-concept. Use the exact same endpoint MyHorizon UI calls:
+bash# Step 1: Validate the artifactory path exists
+curl -X GET \
+  "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/checkartifactpath?path=libs-snapshots-local-generic/com/bofa/hello_flutter" \
+  -H "Authorization: Bearer <YOUR_SSO_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -v
+
+# Step 2: Upload large file directly
+curl -X POST \
+  "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/bigfile.tar.gz" \
+  -H "Authorization: Bearer <YOUR_SSO_TOKEN>" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/path/to/bigfile.tar.gz" \
+  --limit-rate 50M \       # throttle if needed
+  --retry 3 \              # auto retry on failure
+  -v                       # verbose to see exact error
+
+What curl failure tells you
+ErrorMeaningNext step413 Request Too LargeServer has size limitMove to chunked strategy401 UnauthorizedToken/auth issueFix SSO token, retry403 ForbiddenPolicy block on endpointRaise with Horizon team000 / Connection refusedNetwork/proxy blockCheck Jenkins agent proxy settingstimeoutFile too large for single streamMove to chunked or JFrog CLI200 OK🎉 No server limit!Done — bake into pipeline
+
+If curl succeeds → wrap in Groovy
+groovy// In NonCompiledPipeline or a custom step
+sh """
+curl -X POST \\
+  "${myHorizonUploadUrl}?repoName=${repoName}&filePath=${filePath}" \\
+  -H "Authorization: Bearer ${env.MYHORIZON_TOKEN}" \\
+  -F "file=@${localFilePath}" \\
+  --retry 3 -v
+"""
+
+Want me to draft the chunked curl strategy (Step 2) next, including the split + reassemble logic? Or first, do you want to figure out what auth token the MyHorizon UI uses when it calls those APIs — that's the critical piece needed before any curl test can run.yes also curl we can run on command promptExactly right kk! curl on command prompt (Windows CMD) is the fastest way to test — no pipeline, no Jenkins, no Groovy — just raw validation from your laptop directly.
+
+curl on Windows CMD — Full Test Sequence
+First — Get your auth token from browser
+Since MyHorizon uses SSO, the easiest way is to steal the token from your own browser session:
+1. Open MyHorizon in Edge/Chrome
+2. Go to Upload Artifacts page
+3. Press F12 → Network tab
+4. Do a small test upload (any tiny file)
+5. Find the "uploadfile" request in Network tab
+6. Click it → Headers tab
+7. Copy the "Authorization: Bearer eyJ..." value
+That token is what curl needs to impersonate the same call.
+
+CMD Test Sequence — Step by Step
+Step 1 — Basic connectivity test
+cmdcurl -X GET "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/getartifacturl" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -H "Content-Type: application/json" ^
+  -v
+Step 2 — Validate the artifactory path
+cmdcurl -X GET "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/checkartifactpath?path=libs-snapshots-local-generic/com/bofa//hello_flutter" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -v
+Step 3 — Upload a SMALL file first (sanity check)
+cmdcurl -X POST "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/test_small.txt" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -F "file=@C:\temp\test_small.txt" ^
+  -v
+Step 4 — Upload a 1.1GB file (break the UI limit)
+cmdcurl -X POST "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/test_1gb.zip" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -F "file=@C:\temp\test_1gb.zip" ^
+  --retry 3 ^
+  -v
+Step 5 — Upload a 3GB file (real scenario test)
+cmdcurl -X POST "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/test_3gb.zip" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -F "file=@C:\temp\test_3gb.zip" ^
+  --limit-rate 50M ^
+  --retry 3 ^
+  -v
+
+What Response to Watch For
+< HTTP/1.1 200 OK       ✅ No server limit — strategy works!
+< HTTP/1.1 413           ❌ Server rejects large files
+< HTTP/1.1 401           ❌ Token expired — refresh from browser
+< HTTP/1.1 403           ❌ Policy block — needs Horizon team
+  curl: (6) timeout      ❌ Too slow / network issue
+
+If curl on CMD succeeds → Next Steps
+CMD curl works
+     ↓
+Same call from Jenkins Linux agent  ← minor syntax change (\ not ^)
+     ↓
+Wrap in Groovy sh{} block
+     ↓
+Add as new param in NonCompiledPipeline
+     ↓
+LOB uses it in Jenkinsfile — done!
+
+If curl on CMD fails → Chunked Strategy (CMD)
+If Step 4 or 5 fails with 413, we split the file right on CMD using PowerShell (built into Windows — no extra tools needed):
+Split the file into 900MB chunks:
+powershell# Run in PowerShell (not CMD)
+$file = "C:\temp\bigfile.tar.gz"
+$chunkSize = 900MB
+$reader = [System.IO.File]::OpenRead($file)
+$buffer = New-Object byte[] $chunkSize
+$part = 0
+while (($read = $reader.Read($buffer, 0, $buffer.Length)) -gt 0) {
+    $outFile = "C:\temp\bigfile.part$part"
+    [System.IO.File]::WriteAllBytes($outFile, $buffer[0..($read-1)])
+    $part++
+}
+$reader.Close()
+Write-Host "Split into $part chunks"
+Then upload each chunk via curl CMD:
+cmdcurl -X POST "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/bigfile.part0" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -F "file=@C:\temp\bigfile.part0" ^
+  -v
+
+curl -X POST "https://myhz.horizon.bankofamerica.com/api/v1/myhorizon/artifactory/uploadfile?repoName=libs-snapshots-local-generic&filePath=/com/bofa/hello_flutter/bigfile.part1" ^
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" ^
+  -F "file=@C:\temp\bigfile.part1" ^
+  -v
+Reassemble on target Linux machine:
+bashcat bigfile.part0 bigfile.part1 bigfile.part2 > bigfile.tar.gz
+# verify integrity
+md5sum bigfile.tar.gz
+
+Full Decision Map for CMD Testing
+TestFile SizeExpected ResultTells YouStep 3~1KB200 OKAuth + endpoint worksStep 41.1GB200 or 413Whether UI limit is frontend onlyStep 53GB200 or timeoutReal scenario viabilityChunked3×900MB200 eachFallback works
+
+Start with Step 3 (small file) first — if that fails, auth or endpoint is broken and no point testing large files. Once small file passes, jump straight to Step 4.
+Want me to also prepare the Linux agent curl equivalent (for when we move to Jenkins pipeline) alongside the CMD version?but if we use myhorizon again we get limit bottle neck ..can we use artifactory api .. want suggestionGreat point kk! You're absolutely right — even if curl bypasses the UI, we're still going through MyHorizon's backend API which may have its own enforced limit. Let's go directly to Artifactory REST API — skip MyHorizon entirely.
+
+Key Insight
+Current:  Jenkins → MyHorizon API → Artifactory
+Proposed: Jenkins → Artifactory REST API directly
+MyHorizon is just a proxy/wrapper around Artifactory. The real engine is Artifactory itself — which has no practical file size limit by default.
+
+But Wait — The Policy Question
+Before jumping to implementation, one critical check:
+
+Does BofA/Horizon policy allow direct Artifactory API calls from Jenkins agents, or must everything go through MyHorizon?
+
+From your screenshots I can see:
+
+ArtifactoryApi.groovy already exists in the pipeline library
+It uses configHelper.getConfiguration('artifactoryUrl') — meaning the Artifactory URL is already registered
+Auth via util.getArtifactoryCredentialAsBase64() — credentials already exist in the platform
+
+This means direct Artifactory API calls are already used internally by Horizon — you're not introducing something new, just exposing it for large file uploads.
+
+Artifactory REST API — Three Approaches
+Approach A — Simple PUT (Best for large files)
+cmdREM Windows CMD - Direct Artifactory PUT (no MyHorizon involved)
+curl -X PUT ^
+  "https://artifacts-prod1.horizon.bankofamerica.com/artifactory/libs-snapshots-local-generic/com/bofa/hello_flutter/bigfile.tar.gz" ^
+  -H "Authorization: Basic BASE64_ARTIFACTORY_CREDS" ^
+  -H "X-Checksum-Sha256: YOUR_FILE_SHA256" ^
+  -T "C:\temp\bigfile.tar.gz" ^
+  -v
+Key difference — -T flag streams the file directly instead of -F (multipart). Much better for large files — lower memory, no encoding overhead.
+
+Approach B — Chunked via Artifactory Multipart API
+Artifactory has a native multipart upload API designed exactly for large files:
+cmdREM Step 1: Initiate multipart upload
+curl -X POST ^
+  "https://artifacts-prod1.horizon.bankofamerica.com/artifactory/api/multipart/libs-snapshots-local-generic/com/bofa/hello_flutter/bigfile.tar.gz" ^
+  -H "Authorization: Basic BASE64_CREDS" ^
+  -v
+
+REM Step 2: Upload each part (returns uploadId from Step 1)
+curl -X PUT ^
+  "https://artifacts-prod1.horizon.bankofamerica.com/artifactory/api/multipart/libs-snapshots-local-generic/com/bofa/hello_flutter/bigfile.tar.gz?uploadId=UPLOAD_ID&partNumber=1" ^
+  -H "Authorization: Basic BASE64_CREDS" ^
+  -T "C:\temp\bigfile.part0" ^
+  -v
+
+REM Step 3: Complete multipart upload
+curl -X POST ^
+  "https://artifacts-prod1.horizon.bankofamerica.com/artifactory/api/multipart/libs-snapshots-local-generic/com/bofa/hello_flutter/bigfile.tar.gz?uploadId=UPLOAD_ID" ^
+  -H "Authorization: Basic BASE64_CREDS" ^
+  -d '{"parts":[{"partNumber":1,"etag":"..."}]}' ^
+  -v
+
+Approach C — JFrog CLI (Cleanest for pipeline)
+cmdREM Configure once
+jfrog rt config --url=https://artifacts-prod1.horizon.bankofamerica.com/artifactory ^
+  --user=YOUR_USER --password=YOUR_PASS
+
+REM Upload any size — handles chunking + retry automatically
+jfrog rt upload ^
+  "C:\temp\bigfile.tar.gz" ^
+  "libs-snapshots-local-generic/com/bofa/hello_flutter/" ^
+  --threads=3 ^
+  --chunk-size=900 ^
+  --retry-wait-time=10
+
+Comparison — Which Approach?
+MyHorizon APIArtifactory PUTMultipart APIJFrog CLISize limit1GB UI / unknown backendNoneNoneNonePolicy safe✅⚠️ needs check⚠️ needs check⚠️ needs checkAlready in platform✅Partially (ArtifactoryApi.groovy)❌ new❌ new toolLarge file handling❌✅ streaming✅ resumable✅ bestCMD testable✅✅✅✅Pipeline effortLowLowMediumMedium
+
+My Recommendation — Two Track Approach
+Track 1 — Test today on CMD:
+Test Artifactory PUT directly with a 1.1GB then 3GB file
+→ If 200 OK: cleanest solution, minimal pipeline change
+→ If 403: policy blocks direct access, need Horizon team approval
+Track 2 — While testing, check with Horizon team:
+
+"ArtifactoryApi.groovy already calls Artifactory directly internally. Can we expose the same credential for LOB-triggered large file uploads via PUT API, bypassing MyHorizon's upload endpoint?"
+
+This frames it as extending existing behaviour not introducing something new — much easier to get approved.
+
+CMD Test to Run Right Now
+cmdREM First — test if direct Artifactory is even reachable
+curl -X GET ^
+  "https://artifacts-prod1.horizon.bankofamerica.com/artifactory/api/system/ping" ^
+  -H "Authorization: Basic BASE64_ARTIFACTORY_CREDS" ^
+  -v
+If you get OK — direct Artifactory API is accessible from your machine and the full strategy is viable.
+
+The critical question is: where do you get the Artifactory credentials? From what I see in ArtifactoryApi.groovy, util.getArtifactoryCredentialAsBase64() already fetches them — we just need to know if that same credential is usable outside of the pipeline context for CMD testing. Do you have access to that credential or can you pull it from Jenkins?
