@@ -1,0 +1,85 @@
+Hi [LOB Contact Name],
+
+As part of the Horizon CICD platform migration, we are integrating the existing pipeline with Cloud Pega using OAuth 2.0 authentication (replacing the current Basic Auth / PRPC wrapper approach).
+
+Our team has completed a proof-of-concept validating the OAuth2 client_credentials flow against a Pega Community Edition instance. The pipeline-side OAuth shared library is ready. To proceed with the actual Cloud Pega integration, we require the following details from your team:
+
+─────────────────────────────────────
+MANDATORY — Cannot proceed without these
+─────────────────────────────────────
+
+1. Cloud Pega Tenant URL (Base URL)
+   The publicly resolvable hostname of your Cloud Pega environment.
+   Example: https://<tenant>.pegacloud.io  or  https://pega.yourbank.com
+   ► Without this, the pipeline cannot reach the Pega server.
+
+2. OAuth2 Token Endpoint
+   The full URL of the token endpoint on your Cloud Pega instance.
+   Standard pattern: https://<tenant>/prweb/PRRestService/oauth2/v1/token
+   Please confirm if this differs on your environment.
+   ► Without this, no Bearer token can be obtained.
+
+3. Client ID
+   The OAuth2 Client ID generated from the OAuth 2.0 Client Registration in Pega Dev Studio (Security → OAuth 2.0 Client Registration).
+   ► Without this, the token request cannot be constructed.
+
+4. Client Secret
+   The corresponding Client Secret for the above Client ID.
+   Please share via secure channel (vault / encrypted mail / secret manager).
+   ► Without this, the client_credentials grant cannot be authenticated.
+
+5. Operator ID mapped to the OAuth Client Registration
+   The Pega Operator ID assigned to the OAuth client (used as the effective permission context for all API calls made by the pipeline).
+   This operator must have access rights to the Import and Export APIs.
+   ► Without this, API calls will fail with authorization errors even if token is obtained.
+
+─────────────────────────────────────
+IMPORTANT — Required to avoid integration failures
+─────────────────────────────────────
+
+6. Access Group / Permissions
+   Confirm the Operator mapped to the OAuth client has the following API access:
+   • Pega Import API  (/prweb/api/v1/archives  or equivalent)
+   • Pega Export API  (/prweb/api/v1/archives  or equivalent)
+   • Any additional role or privilege required for deployment operations.
+
+7. Network / Firewall Whitelisting
+   Confirm whether inbound API calls from our CICD pipeline infrastructure require IP whitelisting or VPN connectivity on the Cloud Pega side.
+   If yes, please share the process to get our pipeline egress IPs whitelisted.
+
+8. Token Expiry and Refresh Policy
+   Confirm the access token TTL (default is typically 3600 seconds).
+   Confirm whether refresh tokens are issued or whether a new token must be obtained per pipeline run.
+
+─────────────────────────────────────
+GOOD TO HAVE — For production readiness
+─────────────────────────────────────
+
+9. Environment Details
+   Confirm which environments are available and their respective tenant URLs:
+   • DEV
+   • SIT / QA
+   • UAT
+   • PROD
+   Each environment will need its own Client ID and Secret.
+
+10. Pega Version
+    Confirm the Pega Platform version running on Cloud (e.g. Infinity 26.x, 24.x, 8.x).
+    This ensures API path compatibility with our PRPC wrapper.
+
+11. SSL / TLS Certificate
+    Confirm whether the Cloud Pega tenant uses a standard public CA-signed certificate or a custom/internal CA.
+    If internal CA, we will need the certificate chain for our pipeline trust store.
+
+─────────────────────────────────────
+
+Once we receive items 1–5, we can begin pipeline integration and testing immediately. Items 6–8 are needed before go-live.
+
+Please treat Client Secret (item 4) as a sensitive credential — do not share over email. We can coordinate a secure transfer via [Vault / CyberArk / encrypted channel as applicable].
+
+Happy to set up a quick call to walk through any of the above if needed.
+
+Regards,
+[Your Name]
+SnapSolve Team | Horizon CI/CD Platform
+Bank of America Continuum Solutions
