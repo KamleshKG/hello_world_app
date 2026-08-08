@@ -1,4 +1,3 @@
-Hi [LOB Contact Name],
 
 As part of the Horizon CICD platform migration, we are integrating the existing pipeline with Cloud Pega using OAuth 2.0 authentication (replacing the current Basic Auth / PRPC wrapper approach).
 
@@ -73,13 +72,62 @@ GOOD TO HAVE — For production readiness
 
 ─────────────────────────────────────
 
+─────────────────────────────────────
+ADDITIONAL MANDATORY — Import/Export API specific
+─────────────────────────────────────
+
+12. Confirm Import/Export API endpoints on Cloud Pega
+    Standard: 
+      POST /prweb/PRRestService/SystemManagement/v2/Import
+      POST /prweb/PRRestService/SystemManagement/v2/Export
+    Confirm if these paths differ on your Cloud tenant.
+    ► Our pipeline PRPC wrapper calls these directly.
+
+13. Confirm SystemManagement Service Package is OAuth2-protected
+    On Cloud Pega Dev Studio → Service Packages → SystemManagement
+    → Authentication type must be set to OAuth 2.0 (not Basic Auth).
+    ► If still set to Basic, Bearer token will be rejected with 401
+      even if token acquisition succeeds.
+    ► This is a Cloud Pega admin change — please confirm or action.
+
+14. Confirm API version compatibility
+    Our current wrapper targets SystemManagement v2 endpoints.
+    Pega Infinity 26.x may have updated API paths.
+    Please confirm the correct version path on your environment.
+	
+
 Once we receive items 1–5, we can begin pipeline integration and testing immediately. Items 6–8 are needed before go-live.
 
 Please treat Client Secret (item 4) as a sensitive credential — do not share over email. We can coordinate a secure transfer via [Vault / CyberArk / encrypted channel as applicable].
 
 Happy to set up a quick call to walk through any of the above if needed.
 
-Regards,
-[Your Name]
-SnapSolve Team | Horizon CI/CD Platform
-Bank of America Continuum Solutions
+
+
+Exactly! Summary of what we proved today and what we need:
+
+What we proved in this session ✅
+
+CE confirmed OAuth2 client_credentials flow structure
+Token endpoint pattern: /prweb/PRRestService/oauth2/v1/token
+Import/Export endpoints: /prweb/PRRestService/SystemManagement/v2/Import and Export
+No scope parameter needed
+Confidential client is correct for pipeline use
+Existing Groovy shared oAuth library can be reused — no Vault needed
+pegaace.net CE is private DNS — real Cloud Pega enterprise tenant will be publicly routable
+
+What we need from LOB/Cloud Pega team — mandatory blockers:
+
+#	Item	Why Mandatory
+1	Cloud Pega Tenant URL	Pipeline can't reach server
+2	OAuth Token Endpoint URL	Can't get Bearer token
+3	Client ID	Token request fails
+4	Client Secret	Authentication fails
+5	Operator ID with Import/Export access	401 even with valid token
+6	SystemManagement service package switched to OAuth2	Bearer token rejected at API level
+7	Confirm Import/Export endpoint paths on their version	Wrong path = 404
+8	Firewall/IP whitelisting for pipeline egress IPs	Connection refused
+
+Once those 8 arrive — one pipeline run closes the POC. 🎯
+
+Good session kk — solid groundwork done end to end.
