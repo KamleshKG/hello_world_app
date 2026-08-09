@@ -387,9 +387,180 @@ Want me to now redraft the full email with this responsibility matrix embedded �
 
 yes meanwhile will copy above in notepad
 
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 Go ahead and copy — take your time. I'll have the full redrafted email ready when you're back.
 
 Meanwhile let me draft it:
+
+Subject: Cloud Pega – OAuth2 Integration Requirements & Action Items | Horizon CICD Pipeline
+
+Hi [LOB Contact Name],
+
+Hope you are doing well.
+
+As part of the Horizon CICD platform migration, we are integrating our existing Jenkins pipeline with Cloud Pega using OAuth 2.0 authentication, replacing the current Basic Auth / PRPC wrapper approach.
+
+Our team has completed a proof-of-concept validating the OAuth2 client_credentials flow and confirmed the token endpoint structure, Import/Export API paths, and pipeline-side Groovy shared library integration. We are ready to proceed with the actual Cloud Pega integration the moment the below items are in place.
+
+To avoid delays, we have clearly called out ownership against each item.
+
+
+════════════════════════════════════════
+BLOCKER ITEMS — Cannot proceed without these
+════════════════════════════════════════
+
+1. Cloud Pega Tenant Base URL
+   Owner     : LOB / Cloud Pega Admin (provide)
+   Action    : Share the publicly resolvable hostname of the Cloud Pega environment
+   Example   : https://<tenant>.pegacloud.io
+   Risk      : Pipeline cannot reach the server without this.
+
+2. OAuth2 Token Endpoint URL
+   Owner     : LOB / Cloud Pega Admin (confirm)
+   Action    : Confirm the token endpoint URL on your environment
+   Standard  : https://<tenant>/prweb/PRRestService/oauth2/v1/token
+   Risk      : No Bearer token can be obtained without this.
+
+3. OAuth2 Client ID
+   Owner     : LOB / Cloud Pega Admin (create + share)
+   Action    : Create an OAuth 2.0 Client Registration in Dev Studio
+               → Dev Studio → Create → Security → OAuth 2.0 Client Registration
+               → Grant type: Client Credentials
+               → Type: Confidential
+               → Note the generated Client ID
+   Risk      : Token request cannot be constructed without this.
+   Note      : Our team has validated this exact registration flow in
+               Pega Community Edition (Infinity 26.1) today.
+
+4. OAuth2 Client Secret
+   Owner     : LOB / Cloud Pega Admin (create + share securely)
+   Action    : Download credentials from the Client Registration
+               Share via CyberArk / secure channel only — NOT over email
+   Risk      : client_credentials grant cannot authenticate without this.
+
+5. Service Account Operator ID with Import/Export Permissions  ← SHARED
+   Owner     : LOB / Cloud Pega Admin (create operator)
+               CICD Team (specify required permissions — see below)
+   Action    : Please create a dedicated service account operator for
+               CICD pipeline use and assign the following:
+               • Access to SystemManagement service package
+               • Import privilege
+               • Export privilege
+               • Appropriate deployment access group
+               Map this Operator ID to the OAuth Client Registration (item 3)
+               and share the Operator ID with our team.
+   Risk      : Token will be obtained successfully but ALL API calls will
+               return 401/403 if operator permissions are not correctly set.
+               This is the most common failure point in OAuth integrations.
+
+6. Switch SystemManagement Service Package to OAuth2  ← SHARED
+   Owner     : LOB / Cloud Pega Admin (action in Dev Studio)
+               CICD Team (providing instructions below)
+   Action    : In Cloud Pega Dev Studio:
+               → Records → Integration-Resources → Service Packages
+               → Open: SystemManagement
+               → Change Authentication type: Basic Auth → OAuth 2.0
+               → Link to the Client Registration created in item 3
+               → Save and publish
+   Instructions: Our team can provide step-by-step guidance if needed.
+                 We have validated this config in CE today.
+   Risk      : Even with a valid Bearer token, API calls will be silently
+               rejected with 401 if this package still expects Basic Auth.
+               This is the single most critical config change on the Pega side.
+
+7. Confirm Import/Export API Endpoint Paths
+   Owner     : LOB / Cloud Pega Admin (confirm)
+   Action    : Confirm the following standard paths are correct on your environment:
+               EXPORT: POST /prweb/PRRestService/SystemManagement/v2/Export
+               IMPORT: POST /prweb/PRRestService/SystemManagement/v2/Import
+               If paths differ due to Pega version or custom config, please share correct paths.
+   Risk      : Wrong path = 404. Our wrapper is hardcoded to above paths.
+
+
+════════════════════════════════════════
+FIREWALL / NETWORK — Parallel track (long lead time — raise immediately)
+════════════════════════════════════════
+
+8. BofA Outbound Firewall Rule  ← CICD TEAM OWNED
+   Owner     : CICD Team → BofA Network/Infra Team
+   Action    : We will raise a firewall change request for:
+               Source      : Jenkins pipeline server IPs
+               Destination : <Cloud Pega Tenant URL> port 443
+               Protocol    : HTTPS
+               Purpose     : CICD pipeline OAuth2 + deployment API calls
+   Status    : Will be raised in parallel — no action needed from LOB.
+
+9. Cloud Pega Inbound IP Whitelist  ← SHARED
+   Owner     : CICD Team (provide IPs) + LOB / Cloud Pega Admin (whitelist)
+   Action    : CICD Team will provide Jenkins egress public IPs.
+               LOB / Cloud Pega Admin to whitelist these IPs on
+               Cloud Pega WAF / inbound firewall for the following endpoints:
+               • /prweb/PRRestService/oauth2/v1/token
+               • /prweb/PRRestService/SystemManagement/v2/Import
+               • /prweb/PRRestService/SystemManagement/v2/Export
+   Note      : Jenkins egress IPs will be shared separately in a follow-up.
+   Risk      : Connection refused / timeout from pipeline even if all
+               OAuth config is correct.
+
+
+════════════════════════════════════════
+GOOD TO HAVE — For production readiness
+════════════════════════════════════════
+
+10. All Environment URLs and Credentials
+    DEV / SIT / UAT / PROD — each needs its own Client ID and Secret.
+    Please share environment-wise details once available.
+
+11. Token Expiry Policy
+    Confirm access token TTL (default: 3600 seconds).
+    Confirm whether refresh tokens are issued or new token per pipeline run.
+
+12. Pega Platform Version
+    Confirm version on Cloud (e.g. Infinity 26.x / 24.x / 8.x).
+    Required for API path compatibility verification.
+
+13. SSL Certificate
+    Confirm whether Cloud Pega uses a standard public CA-signed certificate
+    or internal CA. If internal CA, please share the certificate chain
+    for our pipeline trust store.
+
+
+════════════════════════════════════════
+SUMMARY — WHO DOES WHAT
+════════════════════════════════════════
+
+  CICD Team
+  • Groovy shared library integration (ready)
+  • Jenkins credentials store setup (ready)
+  • BofA outbound firewall CR (will raise in parallel)
+  • Provide Jenkins egress IPs for whitelisting
+  • Provide operator permission requirements (listed in item 5)
+  • Provide Dev Studio instructions for items 3, 6 if needed
+
+  LOB / Cloud Pega Admin
+  • Share tenant URL and confirm endpoint paths (items 1, 2, 7)
+  • Create OAuth Client Registration + share Client ID/Secret (items 3, 4)
+  • Create service account operator with correct permissions (item 5)
+  • Switch SystemManagement service package to OAuth2 (item 6)
+  • Whitelist Jenkins egress IPs on Cloud Pega inbound firewall (item 9)
+
+  BofA Network Team
+  • Approve and implement outbound firewall rule (item 8)
+
+
+Once items 1 through 7 are in place and firewall rules are active,
+we can complete the end-to-end pipeline test in a single run.
+
+Happy to set up a quick call to walk through any of the above.
+Please treat Client Secret (item 4) as sensitive — coordinate secure
+transfer via CyberArk or equivalent.
+
+Regards,
+[Your Name]
+SnapSolve Team | Horizon CI/CD Platform
+Bank of America Continuum Solutions
+
 
 Subject:
 
